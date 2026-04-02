@@ -4,7 +4,7 @@
    Système clé/porte. Trois clés (K) et de
    nombreuses portes (P) à ouvrir en cascade.
    Ennemis roses (r, r>) et roses foncés (R, R>).
-   Trois trinkets.
+   Trois chipsets.
    ============================================= */
 
 // Thème visuel : violet, ambiance mystérieuse

@@ -123,34 +123,34 @@ Quatre types d'ennemis, définis par couleur et comportement :
 
 ## 4. Système de difficulté
 
-### 4.1 Mort instantanée
-- Tout contact avec un pic, un ennemi ou un obstacle = **mort immédiate**. Pas de points de vie, pas de dégâts, pas de frames d'invincibilité.
+### 4.1 Fault instantanée
+- Tout contact avec un pic, un ennemi ou un obstacle = **fault immédiate**. Pas de points de vie, pas de dégâts, pas de frames d'invincibilité.
 
 ### 4.2 Checkpoints généreux
 - Les checkpoints sont représentés par `C` (petit terminal/pôle) et s'activent au toucher.
 - Placement **extrêmement fréquent** : au moins un au début de chaque salle, et avant chaque passage difficile.
-- Le respawn est **instantané** : un bref flash, et le joueur est de retour. Aucun écran de mort, aucun chargement.
+- Le respawn est **instantané** : un bref flash, et le joueur est de retour. Aucun écran de fault, aucun chargement.
 - **Gravité automatique** : au respawn, la gravité est ajustée selon la plateforme accolée au checkpoint (sol en dessous → gravité normale, sol au-dessus → gravité inversée). La fonction `graviteInverseeA()` est utilisée.
 - **Checkpoints au plafond** : un checkpoint peut être placé au plafond. Son dessin est alors inversé (pilier pendant vers le bas).
 - **Spawn initial** : le joueur apparaît au checkpoint le plus à gauche de la première salle en début de partie (pas de tile de spawn dédiée).
 
 ### 4.3 Pas de système de vies
 - **Vies infinies**. Le joueur peut mourir autant de fois que nécessaire sans pénalité.
-- Un **compteur de morts** global comptabilise les décès. Les joueurs accumulent typiquement **500 à 1500+ morts** lors d'une première partie.
+- Un **compteur de faults** global comptabilise les décès. Les joueurs accumulent typiquement **500 à 1500+ faults** lors d'une première partie.
 - Ce compteur est un badge d'honneur, pas une punition.
 
 ### 4.4 Boucle de gameplay
-- La combinaison mort instantanée + respawn instantané + checkpoints fréquents crée une boucle **"encore un essai"** qui maintient la frustration basse malgré la difficulté élevée.
+- La combinaison fault instantanée + respawn instantané + checkpoints fréquents crée une boucle **"encore un essai"** qui maintient la frustration basse malgré la difficulté élevée.
 
 ### 4.5 Courbe de difficulté
 - Les premières zones enseignent la mécanique en douceur.
-- La difficulté monte significativement dans les zones avancées et les défis optionnels (trinkets).
+- La difficulté monte significativement dans les zones avancées et les défis optionnels (chipsets).
 - Le chemin principal est exigeant mais accessible grâce aux checkpoints.
 
-## 5. Collectibles — Trinkets
+## 5. Collectibles — Chipsets
 
-- **20 trinkets** disséminés dans le monde, dans des emplacements difficiles d'accès ou cachés.
-- Certains trinkets exigent des prouesses de précision extrême.
+- **20 chipsets** disséminés dans le monde, dans des emplacements difficiles d'accès ou cachés.
+- Certains chipsets exigent des prouesses de précision extrême.
 
 ## 6. Direction artistique
 
@@ -167,7 +167,7 @@ Quatre types d'ennemis, définis par couleur et comportement :
 - Style **chiptune/synthétique** : sons MIDI/MOD, synthétiseur, game boy. Chaque salle a sa propre musique.
 
 ### 6.4 Effets sonores
-- Minimalistes, style rétro : bleeps et bloops. Son de mort distinctif, carillon de checkpoint, signal d'inversion de gravité.
+- Minimalistes, style rétro : bleeps et bloops. Son de fault distinctif, carillon de checkpoint, signal d'inversion de gravité.
 
 ## 7. Architecture technique
 
@@ -265,7 +265,7 @@ Chaque morceau contient ces patterns :
 | `(` | 15 | Tapis roulant rapide → gauche (boost 3.2, emporte le joueur) |
 | `K` | 11 | Clé |
 | `P` | 12 | Porte (destructible avec une clé, cascade aux portes adjacentes) |
-| `T` | 16 | Trinket (collectible, persiste au respawn) |
+| `T` | 16 | Chipset (collectible, persiste au respawn) |
 | `@` | 17 | Plateforme éphémère (disparaît ~0.8s après contact, réapparaît ~3s) |
 | `=` | *(pas de tile)* | Plateforme mobile lente (0.8 px/frame). Largeur = nb de `=` consécutifs |
 | `~` | *(pas de tile)* | Plateforme mobile rapide (1.6 px/frame). Largeur = nb de `~` consécutifs |
@@ -387,16 +387,18 @@ Le code utilise un vocabulaire **français uniforme** aligné sur ce document. L
 | Chargement dynamique | `largeursSalles`, `salleMin`, `salleMax`, `salleDeColonne()`, `FOG_TILES`, `bgAvecAlpha()` |
 | Salle d'ennemi | `ennemi.salle` (attribut sur chaque ennemi/plateforme) |
 | Mouvement circulaire | `ennemi.isCircle` |
-| Trinkets | `trinketsCollectes`, `TRINKETS_TOTAL`, `trinketsRamasses` (Set) |
+| Chipsets | `chipsetsCollectes`, `CHIPSETS_TOTAL`, `chipsetsRamasses` (Set) |
 | Cascade portes | `detruirePorteCascade()` |
 | Plateformes éphémères | `ephemeres[]`, `initEphemeres()`, `EPH_DELAI`, `EPH_REAPPEAR` |
 | Lignes de gravité | `gravLineCooldown`, `GRAV_LINE_CD` |
 | Détection gravité | `graviteInverseeA(px, py)` — retourne `true` si sol au-dessus |
 | Téléporteurs | `teleporteurs[]`, `TP_COOLDOWN`, `TP_COLORS` |
 | Audio | `audioCtx`, `musiqueActive`, `noteVersHz()` |
+| Flash de fault | `flashFault` (anciennement `flashMort`) |
 
 **Règles** :
 - Les **noms de fonctions et variables** utilisent le français quand le terme est un concept de gameplay (salle, joueur, ennemi, pic, etc.) ou un helper (estSolide, chevauche, etc.).
 - Les **termes musicaux universels** restent en anglais : `pLead`, `pArp`, `pBass`, `pPad`, `pKick`, `pSnare`, `pHH`, `pStab`.
 - Les **propriétés internes de bas niveau** (coordonnées `x`, `y`, `vx`, `vy`, `w`, `h`, `speed`, `timer`, etc.) restent en anglais par convention.
 - Les **commentaires** sont systématiquement en français.
+- **Terminologie "Fault"** : le concept de "mort" du joueur est désigné par **"Fault"** (singulier) et **"Faults"** (pluriel) dans tous les textes affichés, commentaires et noms de variables. Cela évoque une erreur de RAM (thématique du jeu). Le terme "mort/morts" ne doit plus être utilisé dans ce contexte.

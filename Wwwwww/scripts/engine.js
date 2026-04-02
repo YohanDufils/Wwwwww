@@ -117,18 +117,18 @@ function _onKeyup(e) { keys[e.code] = false; }
 let deaths = 0;
 let time = 0;
 let tremblement = 0;          // Intensité du screen shake
-let flashMort = 0;            // Opacité du flash blanc de mort (1 → 0)
+let flashFault = 0;           // Opacité du flash blanc de fault (1 → 0)
 let clesEnPoche = 0;          // Nombre de clés en possession
-let trinketsCollectes = 0;    // Nombre de trinkets ramassés
-const TRINKETS_TOTAL = 20;    // Nombre total de trinkets dans le monde
-const trinketsRamasses = new Set(); // Positions des trinkets déjà ramassés (survit au respawn)
+let chipsetsCollectes = 0;    // Nombre de chipsets ramassés
+const CHIPSETS_TOTAL = 20;    // Nombre total de chipsets dans le monde
+const chipsetsRamasses = new Set(); // Positions des chipsets déjà ramassés (survit au respawn)
 let bossGemsCollectes = 0;        // Compteur de Boss Gems ramassées
 let bossVaincuAffiche = false;     // Affichage "Boss Vaincu" (dismiss par touche)
-let bossLoots = [];               // Loots flottants après la mort du boss
+let bossLoots = [];               // Loots flottants après la défaite du boss
 
 // --- Animation de l'écran "Boss Vaincu" ---
 let bvTimer = 0;            // Timer global de l'animation (frames)
-let bvPhase = 0;            // Phase : 0=titre, 1=trinkets, 2=gems, 3=morts, 4=message espace
+let bvPhase = 0;            // Phase : 0=titre, 1=chipsets, 2=gems, 3=faults, 4=message espace
 let bvCompteur = 0;         // Valeur affichée du compteur en cours
 let bvCibleCompteur = 0;    // Valeur cible du compteur en cours
 let bvTickTimer = 0;        // Timer pour le rythme des ticks de comptage
@@ -193,7 +193,7 @@ const joueur = {
 // 7=pic gauche  8=pic droit
 // 9=tapis roulant lent droite(])  10=tapis roulant lent gauche([)
 // 11=clé  12=porte  13=pic non résolu(!)  14=pic losange (volant)
-// 15=tapis roulant rapide gauche(()  16=trinket  17=plateforme éphémère(@)
+// 15=tapis roulant rapide gauche(()  16=chipset  17=plateforme éphémère(@)
 
 const TILE_CHARS = {
   '.': 0, ' ': 0, '#': 1, '!': 13,
@@ -956,7 +956,7 @@ function respawn() {
 /** Redémarrage complet (depuis le menu victoire) */
 function recommencer() {
   deaths = 0;
-  trinketsCollectes = 0; trinketsRamasses.clear();
+  chipsetsCollectes = 0; chipsetsRamasses.clear();
   bossGemsCollectes = 0; bossVaincuAffiche = false; bossLoots = [];
   bvTimer = 0; bvPhase = 0; bvCompteur = 0; bvCibleCompteur = 0; bvTickTimer = 0; bvPhaseDelai = 0;
   for (const cp of checkpoints) cp.activated = false;
@@ -1051,7 +1051,7 @@ function getSalleIdx() {
 /** Tue le joueur : flash, SFX et respawn après délai */
 function tuerJoueur() {
   joueur.alive = false;
-  flashMort = 1;
+  flashFault = 1;
   sfx('death');
   setTimeout(respawn, 350);
 }
@@ -1074,19 +1074,48 @@ function bossVitesseActuelle() {
   return 1.2 * (1 + (boss.maxHp - boss.hp) * BOSS_FACTEUR_HP_VITESSE) * boss.spdMul;
 }
 
-/** Dessine un trinket (losange cyan pulsant et tournant) au point (cx, cy) */
-function dessinerTrinket(cx, cy) {
+/** Dessine un chipset (carré cyan pulsant et tournant avec pattes latérales) au point (cx, cy) */
+function dessinerChipset(cx, cy) {
   const p = 0.5 + 0.5 * Math.sin(time * 0.08);
   const angle = time * 0.03;
-  const sz = 7 + 2 * p;
+  const sz = 6 + 1.5 * p;
+  const alpha = 0.6 + 0.4 * p;
   ctx.shadowColor = '#0ff'; ctx.shadowBlur = 15 * p;
-  ctx.fillStyle = `rgba(0,255,255,${0.6 + 0.4 * p})`;
+  ctx.fillStyle = `rgba(0,255,255,${alpha})`;
+  // Corps du chipset (carré tournant)
   ctx.beginPath();
-  ctx.moveTo(cx + Math.cos(angle) * sz, cy + Math.sin(angle) * sz);
-  ctx.lineTo(cx + Math.cos(angle + Math.PI / 2) * sz, cy + Math.sin(angle + Math.PI / 2) * sz);
-  ctx.lineTo(cx + Math.cos(angle + Math.PI) * sz, cy + Math.sin(angle + Math.PI) * sz);
-  ctx.lineTo(cx + Math.cos(angle + 3 * Math.PI / 2) * sz, cy + Math.sin(angle + 3 * Math.PI / 2) * sz);
+  for (let i = 0; i < 4; i++) {
+    const a = angle + i * Math.PI / 2;
+    const method = i === 0 ? 'moveTo' : 'lineTo';
+    ctx[method](cx + Math.cos(a) * sz, cy + Math.sin(a) * sz);
+  }
   ctx.fill();
+  // Pattes du chipset (2 de chaque côté = 8 pattes au total)
+  ctx.strokeStyle = `rgba(0,255,255,${alpha})`;
+  ctx.lineWidth = 1.5;
+  const patteLen = 4 + p;
+  for (let i = 0; i < 4; i++) {
+    const a = angle + i * Math.PI / 2;
+    const aNext = angle + (i + 1) * Math.PI / 2;
+    // Point milieu du côté
+    const mx = (Math.cos(a) + Math.cos(aNext)) / 2;
+    const my = (Math.sin(a) + Math.sin(aNext)) / 2;
+    // Direction perpendiculaire (vers l'extérieur)
+    const nx = mx, ny = my;
+    const nLen = Math.sqrt(nx * nx + ny * ny) || 1;
+    const dx = nx / nLen, dy = ny / nLen;
+    // Deux pattes décalées le long du côté
+    const tx = (Math.cos(aNext) - Math.cos(a)) * 0.25;
+    const ty = (Math.sin(aNext) - Math.sin(a)) * 0.25;
+    for (const sign of [-1, 1]) {
+      const bx = cx + mx * sz + tx * sign * sz;
+      const by = cy + my * sz + ty * sign * sz;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + dx * patteLen, by + dy * patteLen);
+      ctx.stroke();
+    }
+  }
   ctx.shadowBlur = 0;
 }
 
@@ -1275,7 +1304,7 @@ function update() {
 // SOUS-FONCTIONS DE UPDATE
 // =============================================
 
-/** Met à jour les lignes de gravité, éphémères, téléporteurs, clés, trinkets et checkpoints */
+/** Met à jour les lignes de gravité, éphémères, téléporteurs, clés, chipsets et checkpoints */
 function mettreAJourCollectibles() {
   // --- Lignes de gravité ---
   if (gravLineCooldown > 0) {
@@ -1358,16 +1387,16 @@ function mettreAJourCollectibles() {
     sfx('key');
   }
 
-  // --- Ramassage de trinket ---
+  // --- Ramassage de chipset ---
   if (kr >= 0 && kr < LIGNES && kc >= 0 && kc < MONDE_COLS && monde[kr][kc] === 16) {
     const clefPos = `${kr},${kc}`;
-    if (!trinketsRamasses.has(clefPos)) {
-      trinketsRamasses.add(clefPos);
-      trinketsCollectes++;
+    if (!chipsetsRamasses.has(clefPos)) {
+      chipsetsRamasses.add(clefPos);
+      chipsetsCollectes++;
     }
     monde[kr][kc] = 0;
     emettreParticules(kc * TILE + TILE / 2, kr * TILE + TILE / 2, '#0ff', 20);
-    sfx('trinket');
+    sfx('chipset');
   }
 
   // --- Activation de checkpoint ---
@@ -1441,9 +1470,9 @@ function mettreAJourEnnemis() {
       if (l.y < 2 * TILE) { l.y = 2 * TILE; l.grounded = true; l.vx = 0; l.vy = 0; }
     }
     if (chevauche(joueur, { x: l.x - 8, y: l.y - 8, w: 16, h: 16 })) {
-      if (l.type === 'trinket') {
-        trinketsCollectes++;
-        sfx('trinket');
+      if (l.type === 'chipset') {
+        chipsetsCollectes++;
+        sfx('chipset');
         emettreParticules(l.x, l.y, '#0ff', 15);
       } else if (l.type === 'key') {
         clesEnPoche++;
@@ -1717,7 +1746,7 @@ function updateBoss() {
           const lx = boss.x + boss.w / 2, ly = boss.y + boss.h / 2;
           const pjx = joueur.x + joueur.w / 2, pjy = joueur.y + joueur.h / 2;
           const angJoueur = Math.atan2(pjy - ly, pjx - lx); // Angle vers le joueur
-          const lootTypes = ['trinket', 'trinket', 'trinket', 'key', 'gem'];
+          const lootTypes = ['chipset', 'chipset', 'chipset', 'key', 'gem'];
           for (let li = 0; li < lootTypes.length; li++) {
             // Angle aléatoire, mais rejeté s'il pointe trop vers le joueur
             let ang;
@@ -2071,8 +2100,8 @@ function dessinerBoss() {
   // Loots du boss
   for (const l of bossLoots) {
     const p = 0.5 + 0.5 * Math.sin(time * 0.08);
-    if (l.type === 'trinket') {
-      dessinerTrinket(l.x, l.y);
+    if (l.type === 'chipset') {
+      dessinerChipset(l.x, l.y);
     } else if (l.type === 'key') {
       ctx.shadowColor = '#ff0'; ctx.shadowBlur = 12 * p;
       ctx.fillStyle = `rgba(255,255,0,${0.7 + 0.3 * p})`;
@@ -2094,12 +2123,12 @@ function dessinerBoss() {
   }
 }
 
-/** Dessine le HUD : infos salle, compteurs, barre de progression, flash de mort */
+/** Dessine le HUD : infos salle, compteurs, barre de progression, flash de fault */
 function dessinerHUD(theme, vw, vh) {
-  // Salle et compteur de morts
+  // Salle et compteur de faults
   ctx.fillStyle = theme.acc; ctx.shadowColor = theme.acc; ctx.shadowBlur = 6;
   ctx.font = '16px "Courier New"'; ctx.textAlign = 'left';
-  ctx.fillText(`Salle ${salleIdx + 1}/${nbSalles} : ${theme.name}  |  Morts: ${deaths}`, 16, 30);
+  ctx.fillText(`Salle ${salleIdx + 1}/${nbSalles} : ${theme.name}  |  Faults: ${deaths}`, 16, 30);
 
   // Compteur de clés
   if (clesEnPoche > 0) {
@@ -2107,17 +2136,17 @@ function dessinerHUD(theme, vw, vh) {
     ctx.fillText(`\u{1F511} x${clesEnPoche}`, 16, 52);
   }
 
-  // Compteur de trinkets
-  if (trinketsCollectes > 0 || TRINKETS_TOTAL > 0) {
+  // Compteur de chipsets
+  if (chipsetsCollectes > 0 || CHIPSETS_TOTAL > 0) {
     ctx.fillStyle = '#0ff'; ctx.shadowColor = '#0ff';
-    ctx.fillText(`\u{2666} ${trinketsCollectes}/${TRINKETS_TOTAL}`, 16, clesEnPoche > 0 ? 74 : 52);
+    ctx.fillText(`\u{2666} ${chipsetsCollectes}/${CHIPSETS_TOTAL}`, 16, clesEnPoche > 0 ? 74 : 52);
   }
 
   // Compteur de Boss Gems
   if (bossGemsCollectes > 0) {
     let gemY = 52;
     if (clesEnPoche > 0) gemY += 22;
-    if (trinketsCollectes > 0 || TRINKETS_TOTAL > 0) gemY += 22;
+    if (chipsetsCollectes > 0 || CHIPSETS_TOTAL > 0) gemY += 22;
     ctx.fillStyle = '#f0f'; ctx.shadowColor = '#f0f';
     ctx.fillText(`\u{2B20} x${bossGemsCollectes}`, 16, gemY);
   }
@@ -2144,11 +2173,11 @@ function dessinerHUD(theme, vw, vh) {
     ctx.shadowBlur = 0;
   }
 
-  // Flash blanc de mort — décroissance progressive
-  if (flashMort > 0) {
-    ctx.fillStyle = `rgba(255,255,255,${flashMort})`;
+  // Flash blanc de fault — décroissance progressive
+  if (flashFault > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${flashFault})`;
     ctx.fillRect(0, 0, vw, vh);
-    flashMort = Math.max(0, flashMort - 0.04);
+    flashFault = Math.max(0, flashFault - 0.04);
   }
 }
 
@@ -2157,7 +2186,7 @@ function dessinerModaleBossVaincu(vw, vh) {
   bvTimer++;
 
   // --- Logique d'animation des compteurs ---
-  // Phase 0 = titre (affichage après délai), 1 = trinkets, 2 = gems, 3 = morts, 4 = message espace
+  // Phase 0 = titre (affichage après délai), 1 = chipsets, 2 = gems, 3 = faults, 4 = message espace
   if (bvPhaseDelai > 0) {
     bvPhaseDelai--;
   } else if (bvPhase >= 1 && bvPhase <= 3 && bvCompteur < bvCibleCompteur) {
@@ -2175,9 +2204,9 @@ function dessinerModaleBossVaincu(vw, vh) {
   } else if (bvPhase >= 1 && bvPhase <= 3 && bvCompteur >= bvCibleCompteur) {
     // Compteur terminé → passer à la phase suivante après une pause marquée
     if (bvPhaseDelai === 0) {
-      // Trinkets au maximum → effet spécial "perfect"
-      if (bvPhase === 1 && trinketsCollectes === TRINKETS_TOTAL) {
-        sfx('perfectTrinkets');
+      // Chipsets au maximum → effet spécial "perfect"
+      if (bvPhase === 1 && chipsetsCollectes === CHIPSETS_TOTAL) {
+        sfx('perfectChipsets');
       } else {
         sfx('countDone');
       }
@@ -2188,10 +2217,10 @@ function dessinerModaleBossVaincu(vw, vh) {
       else if (bvPhase === 4) { bvCompteur = 0; } // Phase message final
     }
   } else if (bvPhase === 0 && bvPhaseDelai === 0) {
-    // Titre affiché, lancer le comptage des trinkets
+    // Titre affiché, lancer le comptage des chipsets
     bvPhase = 1;
     bvCompteur = 0;
-    bvCibleCompteur = trinketsCollectes;
+    bvCibleCompteur = chipsetsCollectes;
     bvPhaseDelai = 20;
   }
 
@@ -2275,15 +2304,15 @@ function dessinerModaleBossVaincu(vw, vh) {
   ctx.fillStyle = 'rgba(80,255,200,0.3)';
   ctx.fillRect(mx + 30, baseY + 18, modalW - 60, 1);
 
-  // Ligne 1 : Trinkets
+  // Ligne 1 : Chipsets
   const row1Y = baseY + lineH + 20;
   if (bvPhase >= 1) {
     ctx.font = `${fontSize}px "Courier New"`;
     ctx.shadowColor = '#0ff'; ctx.shadowBlur = 10;
     ctx.fillStyle = '#0ff';
-    const trinketVal = bvPhase === 1 ? bvCompteur : trinketsCollectes;
-    const trinketTxt = `TRINKETS ............ ${String(trinketVal).padStart(3, ' ')} / ${TRINKETS_TOTAL}`;
-    ctx.fillText(trinketTxt, centreX + jitterX, row1Y + jitterY);
+    const chipsetVal = bvPhase === 1 ? bvCompteur : chipsetsCollectes;
+    const chipsetTxt = `CHIPSETS ............ ${String(chipsetVal).padStart(3, ' ')} / ${CHIPSETS_TOTAL}`;
+    ctx.fillText(chipsetTxt, centreX + jitterX, row1Y + jitterY);
   }
 
   // Ligne 2 : Boss Gems
@@ -2297,14 +2326,14 @@ function dessinerModaleBossVaincu(vw, vh) {
     ctx.fillText(gemTxt, centreX + jitterX, row2Y + jitterY);
   }
 
-  // Ligne 3 : Morts
+  // Ligne 3 : Faults
   const row3Y = row2Y + lineH;
   if (bvPhase >= 3) {
     ctx.font = `${fontSize}px "Courier New"`;
     ctx.shadowColor = '#f55'; ctx.shadowBlur = 10;
     ctx.fillStyle = '#f55';
     const deathVal = bvPhase === 3 ? bvCompteur : deaths;
-    const deathTxt = `MORTS ............... ${String(deathVal).padStart(3, ' ')}`;
+    const deathTxt = `FAULTS .............. ${String(deathVal).padStart(3, ' ')}`;
     ctx.fillText(deathTxt, centreX + jitterX, row3Y + jitterY);
   }
 
@@ -2573,8 +2602,8 @@ function draw() {
         ctx.fillStyle = '#f80'; ctx.fillRect(x + TILE / 2 - 2, y + TILE / 2 - 2, 4, 4);
         ctx.shadowBlur = 0;
       } else if (tile === 16) {
-        // Trinket : losange cyan pulsant et tournant
-        dessinerTrinket(x + TILE / 2, y + TILE / 2);
+        // Chipset : carré cyan pulsant et tournant avec pattes
+        dessinerChipset(x + TILE / 2, y + TILE / 2);
       } else if (tile === 17) {
         // Plateforme éphémère : style nuage avec scintillement
         const eph = ephMap.get(`${r},${c}`);
@@ -3291,7 +3320,7 @@ function sfx(type) {
     }
 
     case 'death': {
-      // Mort : souffle doux descendant, subtil et éthéré
+      // Fault : souffle doux descendant, subtil et éthéré
       o.type = 'sine';
       o.frequency.setValueAtTime(520, t);
       o.frequency.exponentialRampToValueAtTime(180, t + 0.4);
@@ -3350,8 +3379,8 @@ function sfx(type) {
       o.start(t); o.stop(t + 0.17);
       break;
 
-    case 'trinket': {
-      // Trinket : arpège ascendant brillant (Do-Mi-Sol-Do aigu)
+    case 'chipset': {
+      // Chipset : arpège ascendant brillant (Do-Mi-Sol-Do aigu)
       o.type = 'sine';
       o.frequency.setValueAtTime(1047, t);        // Do6
       o.frequency.setValueAtTime(1319, t + 0.06);  // Mi6
@@ -3455,8 +3484,8 @@ function sfx(type) {
       break;
     }
 
-    case 'perfectTrinkets': {
-      // Tous les trinkets collectés — fanfare dorée triomphale
+    case 'perfectChipsets': {
+      // Tous les chipsets collectés — fanfare dorée triomphale
       // Couche 1 — arpège majeur rapide ascendant (Sol4-Si4-Ré5-Sol5-Si5-Ré6)
       o.type = 'sine';
       o.frequency.setValueAtTime(392, t);          // Sol4
@@ -3551,8 +3580,8 @@ window.demarrerJeu = function(callbackRetour, callbackBossVaincu) {
   genererParallaxe();
 
   // Réinitialiser l'état
-  deaths = 0; time = 0; tremblement = 0; flashMort = 0;
-  clesEnPoche = 0; trinketsCollectes = 0; trinketsRamasses.clear();
+  deaths = 0; time = 0; tremblement = 0; flashFault = 0;
+  clesEnPoche = 0; chipsetsCollectes = 0; chipsetsRamasses.clear();
   bossGemsCollectes = 0; bossVaincuAffiche = false; bossLoots = [];
   particules = [];
   parallaxeVisible = [true, true, true];

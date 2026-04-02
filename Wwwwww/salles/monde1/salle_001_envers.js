@@ -3,7 +3,7 @@
    Salle 1 — Le monde à l'enWWWWWWers
    Tutoriel : premier contact avec l'inversion
    de gravité. Pas d'ennemis, pics pour enseigner
-   le danger. Deux trinkets à récupérer.
+   le danger. Deux chipsets à récupérer.
    ============================================= */
 
 // Thème visuel : bleu cyan, ambiance calme

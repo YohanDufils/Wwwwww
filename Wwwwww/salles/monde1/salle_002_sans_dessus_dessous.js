@@ -1,7 +1,7 @@
 (function() {
 /* =============================================
    Salle 2 — Sans dessus-dessous
-   Parcours avec pics, une clé (K) et un trinket.
+   Parcours avec pics, une clé (K) et un chipset.
    ============================================= */
 
 // Thème visuel : orange, ambiance industrielle

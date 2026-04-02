@@ -5,7 +5,7 @@
    mobiles verticales (=), plateformes éphémères
    (@), ligne de gravité (G), et trois ennemis
    (R>, R, V). Trois fosses de pics au sol.
-   Deux trinkets.
+   Deux chipsets.
    ============================================= */
 
 // Thème visuel : violet/indigo, ambiance calme et inquiétante

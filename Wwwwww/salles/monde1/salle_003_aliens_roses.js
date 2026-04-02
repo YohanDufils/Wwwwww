@@ -3,7 +3,7 @@
    Salle 3 — Des aliens roses comme l'amour
    Introduction des ennemis roses (r) et roses
    foncés (R) avec différentes directions.
-   Deux trinkets à récupérer.
+   Deux chipsets à récupérer.
    ============================================= */
 
 // Thème visuel : vert émeraude

@@ -4,7 +4,7 @@
    Dernière salle avant le boss. Mélange de tous
    les types d'ennemis : roses (r), roses foncés
    (R), verts (v) et verts foncés (V).
-   Pics au plafond et au sol. Deux trinkets.
+   Pics au plafond et au sol. Deux chipsets.
    ============================================= */
 
 // Thème visuel : jaune, urgence avant le combat final
