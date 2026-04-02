@@ -94,6 +94,17 @@
         transition: opacity 0.8s ease 0.6s;
       }
       #commandes.visible { opacity: 1; pointer-events: auto; }
+
+      #credits {
+        order: 4;
+        margin-top: 3vh;
+        font-family: 'Courier New', monospace;
+        font-size: min(1vw, 1.2vh);
+        color: rgba(255,255,255,0.2);
+        opacity: 0;
+        transition: opacity 0.8s ease 0.8s;
+      }
+      #credits.visible { opacity: 1; }
     </style>
   </head>
   <body>
@@ -124,6 +135,7 @@
         <strong>ÉCHAP</strong> : Retourner à l'accueil<br>
         <strong>J</strong> : Jukebox
       </div>
+      <div id="credits">Application cr&eacute;&eacute;e en 2026 par Yohan Dufils, assist&eacute; par Claude Code</div>
     </div>
 
     <!-- Overlay pour les transitions CRT -->
@@ -611,6 +623,7 @@
         setTimeout(() => {
           contenuEl.classList.add('visible');
           cmdEl.classList.add('visible');
+          document.getElementById('credits').classList.add('visible');
         }, 200);
 
         if (window.titleVortexStart) window.titleVortexStart();
