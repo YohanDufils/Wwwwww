@@ -110,13 +110,13 @@
       ctx.fillRect(0, 0, w, h);
     }
 
-    // Position du titre "WWWWWW" (centre du h1 ou #titre-w)
-    const h1 = document.querySelector('#title h1') || document.getElementById('titre-w');
+    // Position sous la barrette RAM
+    const ramEl = document.getElementById('ram-canvas');
     let haloX = centerX, haloY = centerY;
-    if (h1) {
-      const rect = h1.getBoundingClientRect();
+    if (ramEl && ramEl.offsetParent !== null) {
+      const rect = ramEl.getBoundingClientRect();
       haloX = rect.left + rect.width / 2;
-      haloY = rect.top + rect.height / 2;
+      haloY = rect.top + rect.height * 0.5;
     }
 
     // Halo centré derrière le titre (respire avec le beat)

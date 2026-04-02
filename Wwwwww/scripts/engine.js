@@ -20,6 +20,7 @@
 let jeuActif = false;
 let loopId = null;
 let _callbackRetour = null;
+let _callbackBossVaincu = null;
 let _listenersActifs = [];
 
 // =============================================
@@ -2472,13 +2473,13 @@ function draw() {
         ctx.fillStyle = coulDrap;
         ctx.beginPath();
         if (auPlafond) {
-          // Drapeau en bas du mât, pointe vers la droite
-          const dy = y + TILE - 5;
+          // Checkpoint au plafond : drapeau en bas du mât (près de la boule qui pend)
+          const dy = y + TILE - 13;
           ctx.moveTo(matX + matW, dy);
           ctx.lineTo(matX + matW + 12, dy + 5 + onde);
           ctx.lineTo(matX + matW, dy + 10);
         } else {
-          // Drapeau en haut du mât, pointe vers la droite
+          // Checkpoint au sol : drapeau en haut du mât
           const dy = y + 3;
           ctx.moveTo(matX + matW, dy);
           ctx.lineTo(matX + matW + 12, dy + 5 + onde);
@@ -2806,10 +2807,14 @@ function _onKeydownActions(e) {
     respawn();
   }
 
-  // Dismiss de l'écran "Boss Vaincu"
+  // Dismiss de l'écran "Boss Vaincu" → retour au menu via callback SPA
   if (e.code === 'Space' && bossVaincuAffiche) {
     if (bvPhase >= 4) {
       bossVaincuAffiche = false;
+      // Signaler au SPA que le monde est terminé
+      if (_callbackBossVaincu) {
+        _callbackBossVaincu();
+      }
     } else {
       // Accélérer : sauter directement à la fin de l'animation
       bvPhase = 4; bvPhaseDelai = 0;
@@ -3512,11 +3517,13 @@ function _loop() {
 }
 
 /** Démarre le jeu avec les salles chargées dans SALLES[].
- *  callbackRetour : fonction appelée quand le joueur appuie sur ESC. */
-window.demarrerJeu = function(callbackRetour) {
+ *  callbackRetour : fonction appelée quand le joueur appuie sur ESC.
+ *  callbackBossVaincu : fonction appelée quand le joueur dismiss la modale boss vaincu. */
+window.demarrerJeu = function(callbackRetour, callbackBossVaincu) {
   if (jeuActif) window.arreterJeu();
 
   _callbackRetour = callbackRetour || null;
+  _callbackBossVaincu = callbackBossVaincu || null;
   jeuActif = true;
   started = true;
 
@@ -3569,8 +3576,9 @@ window.demarrerJeu = function(callbackRetour) {
   _loop();
 };
 
-/** Arrête le jeu proprement et retourne au menu */
-window.arreterJeu = function() {
+/** Arrête le jeu proprement.
+ *  skipCallback : si true, ne pas appeler le callback retour (le boss vaincu gère le retour lui-même). */
+window.arreterJeu = function(skipCallback) {
   jeuActif = false;
   started = false;
 
@@ -3587,8 +3595,8 @@ window.arreterJeu = function() {
   // Vider l'état des touches
   for (const k in keys) delete keys[k];
 
-  // Appeler le callback de retour
-  if (_callbackRetour) _callbackRetour();
+  // Appeler le callback de retour (sauf si skipCallback)
+  if (!skipCallback && _callbackRetour) _callbackRetour();
 };
 
 // Fermer l'IIFE

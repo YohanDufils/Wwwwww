@@ -9,7 +9,8 @@
       #scene {
         position: absolute; inset: 0; z-index: 25;
         display: flex; flex-direction: column;
-        align-items: center; justify-content: center;
+        align-items: center; justify-content: flex-end;
+        padding-bottom: 15vh;
         color: #fff; text-align: center;
         pointer-events: none;
       }
@@ -17,8 +18,8 @@
       /* Titre WWWWWW — anime position et taille */
       #titre-w {
         font-family: 'Courier New', monospace;
-        font-size: min(12vw, 10vh);
-        letter-spacing: min(1.5vw, 16px);
+        font-size: min(18vw, 16vh);
+        letter-spacing: min(2vw, 20px);
         color: #0ff;
         text-shadow: 0 0 20px #0ff, 0 0 40px #08f, 0 0 80px #04f;
         animation: pulse 2s ease-in-out infinite;
@@ -118,12 +119,15 @@
       <div id="commandes">
         <strong>◀ ▶</strong> ou <strong>Q / D</strong> : Sélectionner un monde<br>
         <strong>ESPACE</strong> : Lancer le monde<br>
-        <strong>▲ ▼</strong> : Inverser la gravité (en jeu)<br>
+        <strong>▲ ▼</strong> ou <strong>ESPACE</strong> : Inverser la gravité (en jeu)<br>
         <strong>R</strong> : Recommencer (en jeu)<br>
         <strong>ÉCHAP</strong> : Retourner à l'accueil<br>
         <strong>J</strong> : Jukebox
       </div>
     </div>
+
+    <!-- Overlay pour les transitions CRT -->
+    <canvas id="crt-overlay" style="display:none; position:absolute; inset:0; z-index:50;"></canvas>
 
     <!-- Registre global des salles (rempli dynamiquement par chargerSalles) -->
     <script>var SALLES = [];</script>
@@ -279,7 +283,7 @@
         // Fond bleu foncé
         ctx.shadowColor = '#06f';
         ctx.shadowBlur = 10;
-        ctx.fillStyle = '#040820';
+        ctx.fillStyle = 'rgba(4,8,32,0.5)';
         ctx.strokeStyle = '#1a5fff';
         ctx.lineWidth = 2;
         roundRect(ctx, 10, pcbY, RAM_W - 20, pcbH, 8);
@@ -371,16 +375,15 @@
         ctx.strokeRect(notchX, pcbY + pcbH - 1, notchW, notchH);
 
         // --- Connecteur RGB arc-en-ciel (lignes de gravité) ---
-        const connY = pcbY + pcbH + notchH - 2;
+        const connY = pcbY + pcbH - 8;
         const connH = 30;
         const nbPins = 64;
         const pinW = (RAM_W - 80) / nbPins;
 
         for (let i = 0; i < nbPins; i++) {
           const px = 40 + i * pinW;
-          if (px > notchX - 4 && px < notchX + notchW + 4) continue;
 
-          const hue = ((i / nbPins) * 360 + t * 80) % 360;
+          const hue = ((i / nbPins) * 360 + t * 240) % 360;
           ctx.fillStyle = `hsl(${hue},100%,55%)`;
           ctx.shadowColor = `hsl(${hue},100%,60%)`;
           ctx.shadowBlur = 4;
@@ -388,11 +391,10 @@
         }
         ctx.shadowBlur = 0;
 
-        // Contour du connecteur RGB
-        const connHue = (t * 60) % 360;
-        ctx.strokeStyle = `hsl(${connHue},100%,60%)`;
+        // Contour du connecteur RGB (bleu néon)
+        ctx.strokeStyle = '#1a5fff';
         ctx.lineWidth = 1.5;
-        ctx.shadowColor = `hsl(${connHue},100%,60%)`;
+        ctx.shadowColor = '#06f';
         ctx.shadowBlur = 6;
         ctx.strokeRect(38, connY - 1, RAM_W - 76, connH + 2);
         ctx.shadowBlur = 0;
@@ -602,6 +604,8 @@
 
         titreW.classList.add('menu-pos');
         sousTitre.classList.add('menu-pos');
+        sceneEl.style.justifyContent = 'center';
+        sceneEl.style.paddingBottom = '0';
         scrambleTransition(TEXTE_INTRO, TEXTE_MENU, 900, null);
 
         setTimeout(() => {
@@ -641,6 +645,290 @@
         }
       }
 
+      // ===== Animation CRT (télé cathodique) =====
+      const crtCanvas = document.getElementById('crt-overlay');
+      const crtCtx = crtCanvas.getContext('2d');
+
+      /** SFX CRT : synthèse procédurale via Web Audio API */
+      function sfxCRT(type) {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        const t = ac.currentTime;
+
+        if (type === 'off') {
+          // Whine descendant (tube cathodique qui s'éteint)
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(4000, t);
+          o.frequency.exponentialRampToValueAtTime(60, t + 0.4);
+          g.gain.setValueAtTime(0.08, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+          o.connect(g); g.connect(ac.destination);
+          o.start(t); o.stop(t + 0.5);
+
+          // Buzz/crépitement électrique
+          const o2 = ac.createOscillator(), g2 = ac.createGain();
+          o2.type = 'sawtooth';
+          o2.frequency.setValueAtTime(120, t);
+          o2.frequency.setValueAtTime(60, t + 0.2);
+          g2.gain.setValueAtTime(0.04, t);
+          g2.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+          o2.connect(g2); g2.connect(ac.destination);
+          o2.start(t); o2.stop(t + 0.35);
+
+          // Pop final
+          const o3 = ac.createOscillator(), g3 = ac.createGain();
+          o3.type = 'sine';
+          o3.frequency.setValueAtTime(200, t + 0.3);
+          o3.frequency.exponentialRampToValueAtTime(40, t + 0.38);
+          g3.gain.setValueAtTime(0.12, t + 0.3);
+          g3.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+          o3.connect(g3); g3.connect(ac.destination);
+          o3.start(t + 0.3); o3.stop(t + 0.42);
+
+          setTimeout(() => ac.close(), 600);
+
+        } else if (type === 'on') {
+          // Bourdonnement électrique montant
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(50, t);
+          o.frequency.exponentialRampToValueAtTime(8000, t + 0.25);
+          o.frequency.exponentialRampToValueAtTime(3000, t + 0.35);
+          g.gain.setValueAtTime(0.001, t);
+          g.gain.linearRampToValueAtTime(0.06, t + 0.15);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+          o.connect(g); g.connect(ac.destination);
+          o.start(t); o.stop(t + 0.55);
+
+          // Crépitement statique (bruit simulé)
+          for (let i = 0; i < 6; i++) {
+            const oN = ac.createOscillator(), gN = ac.createGain();
+            oN.type = 'square';
+            oN.frequency.value = 200 + Math.random() * 10000;
+            const tStart = t + 0.05 + Math.random() * 0.3;
+            gN.gain.setValueAtTime(0.015, tStart);
+            gN.gain.exponentialRampToValueAtTime(0.001, tStart + 0.04);
+            oN.connect(gN); gN.connect(ac.destination);
+            oN.start(tStart); oN.stop(tStart + 0.05);
+          }
+
+          // Hum de fond (60 Hz, le bourdonnement du tube)
+          const oH = ac.createOscillator(), gH = ac.createGain();
+          oH.type = 'sine';
+          oH.frequency.value = 60;
+          gH.gain.setValueAtTime(0.03, t + 0.1);
+          gH.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+          oH.connect(gH); gH.connect(ac.destination);
+          oH.start(t + 0.1); oH.stop(t + 0.65);
+
+          setTimeout(() => ac.close(), 800);
+        }
+      }
+
+      /** Animation CRT OFF→ON. Retourne une Promise résolue quand c'est fini.
+       *  onNoir : callback appelé au début de la phase noire (pour switcher le contenu sous l'overlay). */
+      function animationCRT(onNoir) {
+        return new Promise(resolve => {
+          const w = crtCanvas.width = innerWidth;
+          const h = crtCanvas.height = innerHeight;
+          crtCanvas.style.display = 'block';
+
+          const cx = w / 2, cy = h / 2;
+          const debut = performance.now();
+          let noirAppele = false;
+
+          // Durées (ms)
+          const DUR_OFF    = 280;  // Écran se collapse
+          const DUR_NOIR   = 245;  // Pause noire
+          const DUR_ON     = 315;  // Écran s'allume
+          const DUR_TOTAL  = DUR_OFF + DUR_NOIR + DUR_ON;
+
+          sfxCRT('off');
+          setTimeout(() => sfxCRT('on'), DUR_OFF + DUR_NOIR - 50);
+
+          function frame() {
+            const elapsed = performance.now() - debut;
+
+            if (elapsed < DUR_OFF) {
+              // --- PHASE OFF : collapse vertical puis horizontal ---
+              const p = elapsed / DUR_OFF;
+
+              // Fond noir
+              crtCtx.fillStyle = '#000';
+              crtCtx.fillRect(0, 0, w, h);
+
+              if (p < 0.6) {
+                // L'image se compresse verticalement → bande horizontale
+                const pp = p / 0.6; // 0→1
+                const bandH = Math.max(2, h * (1 - pp));
+                const bandY = cy - bandH / 2;
+
+                // Bande blanche lumineuse
+                crtCtx.fillStyle = `rgba(200,220,255,${0.6 + 0.4 * (1 - pp)})`;
+                crtCtx.fillRect(0, bandY, w, bandH);
+
+                // Scanlines dans la bande
+                crtCtx.fillStyle = 'rgba(0,0,0,0.15)';
+                for (let sy = bandY; sy < bandY + bandH; sy += 3) {
+                  crtCtx.fillRect(0, sy, w, 1);
+                }
+
+                // Phosphor glow
+                const glow = crtCtx.createRadialGradient(cx, cy, 0, cx, cy, bandH);
+                glow.addColorStop(0, `rgba(180,200,255,${0.15 * (1 - pp)})`);
+                glow.addColorStop(1, 'rgba(0,0,0,0)');
+                crtCtx.fillStyle = glow;
+                crtCtx.fillRect(0, 0, w, h);
+
+              } else {
+                // La bande se compresse horizontalement → point
+                const pp = (p - 0.6) / 0.4; // 0→1
+                const bandW = Math.max(3, w * (1 - pp));
+                const bandX = cx - bandW / 2;
+                const dotH = Math.max(2, 4 * (1 - pp * 0.5));
+
+                crtCtx.fillStyle = `rgba(200,220,255,${0.8 * (1 - pp * 0.3)})`;
+                crtCtx.fillRect(bandX, cy - dotH / 2, bandW, dotH);
+
+                // Glow autour du point
+                const glow = crtCtx.createRadialGradient(cx, cy, 0, cx, cy, 40 * (1 - pp) + 5);
+                glow.addColorStop(0, `rgba(180,200,255,${0.3 * (1 - pp)})`);
+                glow.addColorStop(1, 'rgba(0,0,0,0)');
+                crtCtx.fillStyle = glow;
+                crtCtx.fillRect(0, 0, w, h);
+              }
+
+            } else if (elapsed < DUR_OFF + DUR_NOIR) {
+              // --- PHASE NOIRE : switcher le contenu sous l'overlay ---
+              if (!noirAppele) {
+                noirAppele = true;
+                if (onNoir) onNoir();
+              }
+              crtCtx.fillStyle = '#000';
+              crtCtx.fillRect(0, 0, w, h);
+
+              // Léger point de phosphore résiduel qui s'estompe
+              const pp = (elapsed - DUR_OFF) / DUR_NOIR;
+              const glow = crtCtx.createRadialGradient(cx, cy, 0, cx, cy, 8);
+              glow.addColorStop(0, `rgba(150,170,220,${0.2 * (1 - pp)})`);
+              glow.addColorStop(1, 'rgba(0,0,0,0)');
+              crtCtx.fillStyle = glow;
+              crtCtx.fillRect(cx - 20, cy - 20, 40, 40);
+
+            } else if (elapsed < DUR_TOTAL) {
+              // --- PHASE ON : expansion du point → bande → plein écran ---
+              const p = (elapsed - DUR_OFF - DUR_NOIR) / DUR_ON;
+
+              crtCtx.fillStyle = '#000';
+              crtCtx.fillRect(0, 0, w, h);
+
+              if (p < 0.3) {
+                // Point lumineux qui apparaît
+                const pp = p / 0.3;
+                const r = 3 + pp * 15;
+                const glow = crtCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
+                glow.addColorStop(0, `rgba(200,220,255,${0.5 * pp})`);
+                glow.addColorStop(0.5, `rgba(100,140,255,${0.3 * pp})`);
+                glow.addColorStop(1, 'rgba(0,0,0,0)');
+                crtCtx.fillStyle = glow;
+                crtCtx.fillRect(0, 0, w, h);
+
+              } else if (p < 0.6) {
+                // Le point s'étire en bande horizontale
+                const pp = (p - 0.3) / 0.3;
+                const bandW = 6 + pp * w;
+                const bandX = cx - bandW / 2;
+                const bandH = 3 + pp * 6;
+
+                crtCtx.fillStyle = `rgba(200,220,255,${0.5 + pp * 0.3})`;
+                crtCtx.fillRect(bandX, cy - bandH / 2, bandW, bandH);
+
+                const glow = crtCtx.createRadialGradient(cx, cy, 0, cx, cy, bandW / 2);
+                glow.addColorStop(0, `rgba(150,180,255,${0.15 * pp})`);
+                glow.addColorStop(1, 'rgba(0,0,0,0)');
+                crtCtx.fillStyle = glow;
+                crtCtx.fillRect(0, 0, w, h);
+
+              } else {
+                // La bande s'étire verticalement → plein écran + bruit
+                const pp = (p - 0.6) / 0.4;
+                const imgH = Math.min(h, pp * h);
+                const imgY = cy - imgH / 2;
+
+                // Effacer tout le canvas (transparent) pour que le contenu en dessous soit visible
+                crtCtx.clearRect(0, 0, w, h);
+
+                // Bandes noires en haut et en bas qui se rétractent
+                if (imgY > 0) {
+                  crtCtx.fillStyle = '#000';
+                  crtCtx.fillRect(0, 0, w, imgY);
+                  crtCtx.fillRect(0, imgY + imgH, w, h - imgY - imgH);
+                }
+
+                // Zone visible : bruit statique + scanlines qui s'estompe
+                if (pp < 0.8) {
+                  const noiseAlpha = 0.12 * (1 - pp / 0.8);
+                  const imgData = crtCtx.createImageData(w, Math.max(1, Math.floor(imgH)));
+                  const d = imgData.data;
+                  for (let i = 0; i < d.length; i += 4) {
+                    const v = Math.random() * 255;
+                    d[i] = d[i+1] = d[i+2] = v;
+                    d[i+3] = noiseAlpha * 255;
+                  }
+                  crtCtx.putImageData(imgData, 0, imgY);
+                }
+
+                // Scanlines
+                if (pp < 0.95) {
+                  crtCtx.fillStyle = `rgba(0,0,0,${0.06 * (1 - pp)})`;
+                  for (let sy = imgY; sy < imgY + imgH; sy += 3) {
+                    crtCtx.fillRect(0, sy, w, 1);
+                  }
+                }
+
+                // Vignette qui s'estompe
+                if (pp < 0.9) {
+                  const voileAlpha = 1 - pp;
+                  const vig = crtCtx.createRadialGradient(cx, cy, h * 0.3 * pp, cx, cy, h * 0.7);
+                  vig.addColorStop(0, 'rgba(0,0,0,0)');
+                  vig.addColorStop(1, `rgba(0,0,0,${voileAlpha * 0.5})`);
+                  crtCtx.fillStyle = vig;
+                  crtCtx.fillRect(0, 0, w, h);
+                }
+              }
+
+            } else {
+              // Terminé — masquer l'overlay (déjà transparent)
+              crtCanvas.style.display = 'none';
+              resolve();
+              return;
+            }
+
+            requestAnimationFrame(frame);
+          }
+
+          requestAnimationFrame(frame);
+        });
+      }
+
+      // ===== Retour au menu (réutilisé par ESC et boss vaincu) =====
+      function afficherMenu() {
+        phase = 2;
+        gameCanvas.classList.remove('visible');
+        sceneEl.style.display = '';
+        document.getElementById('title-bg').style.display = 'block';
+        if (window.titleVortexStart) window.titleVortexStart();
+
+        // Relire la progression (elle a pu changer si le boss a été battu)
+        progression = parseInt(localStorage.getItem('wwwwww_progression') || '1');
+
+        // Relancer le jukebox
+        if (window.jukeboxPlay && window.jukeboxNbPistes) {
+          const nb = window.jukeboxNbPistes();
+          window.jukeboxPlay(Math.floor(Math.random() * nb));
+        }
+      }
+
       // ===== Lancer un monde (SPA) =====
       async function lancerMonde(num) {
         if (phase === 3) return;
@@ -648,37 +936,36 @@
         // Arrêter le jukebox
         if (window.jukeboxStop) window.jukeboxStop();
 
-        // Masquer le menu, afficher le canvas de jeu
-        sceneEl.style.display = 'none';
-        document.getElementById('title-bg').style.display = 'none';
-        if (window.titleVortexStop) window.titleVortexStop();
-        gameCanvas.classList.add('visible');
-
         // Stocker l'index du monde courant
         window.MONDE_COURANT = num - 1;
 
-        // Charger les salles
-        await chargerSalles(num - 1);
+        // Charger les salles pendant l'animation
+        const chargementPromise = chargerSalles(num - 1);
 
-        phase = 3;
-
-        // Démarrer le moteur avec callback de retour
-        window.demarrerJeu(function retourAuMenu() {
-          phase = 2;
-          gameCanvas.classList.remove('visible');
-          sceneEl.style.display = '';
-          document.getElementById('title-bg').style.display = 'block';
-          if (window.titleVortexStart) window.titleVortexStart();
-
-          // Relire la progression (elle a pu changer si le boss a été battu)
-          progression = parseInt(localStorage.getItem('wwwwww_progression') || '1');
-
-          // Relancer le jukebox
-          if (window.jukeboxPlay && window.jukeboxNbPistes) {
-            const nb = window.jukeboxNbPistes();
-            window.jukeboxPlay(Math.floor(Math.random() * nb));
-          }
+        // Lancer l'animation CRT OFF → ON
+        // Pendant la phase noire : switcher menu → jeu
+        const animPromise = animationCRT(function() {
+          sceneEl.style.display = 'none';
+          document.getElementById('title-bg').style.display = 'none';
+          if (window.titleVortexStop) window.titleVortexStop();
+          gameCanvas.classList.add('visible');
         });
+
+        // Attendre que les salles soient chargées
+        await chargementPromise;
+
+        // Démarrer le moteur
+        phase = 3;
+        // Retour au menu avec animation CRT (utilisé par ESC et boss vaincu)
+        async function retourAvecCRT() {
+          if (window.arreterJeu) window.arreterJeu(true);
+          await animationCRT(afficherMenu);
+        }
+
+        window.demarrerJeu(retourAvecCRT, retourAvecCRT);
+
+        // L'animation CRT ON révèle le jeu en dessous
+        await animPromise;
       }
 
       // ===== Clavier =====
