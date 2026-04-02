@@ -8,7 +8,19 @@
      salle_XXX_*.js)
    - Ce fichier gère : parsing des salles, physique,
      caméra, rendu, boss, musique et SFX
+   - Mode SPA : le moteur expose window.demarrerJeu()
+     et window.arreterJeu() pour démarrer/arrêter
+     le jeu sans rechargement de page.
    ============================================= */
+
+(function() {
+'use strict';
+
+// Flag pour éviter les doubles initialisations
+let jeuActif = false;
+let loopId = null;
+let _callbackRetour = null;
+let _listenersActifs = [];
 
 // =============================================
 // CONSTANTES
@@ -28,15 +40,13 @@ const BOSS_DECROISSANCE_VITESSE = 5.0 / 1000; // Décroissance du boost de vites
 // CANVAS
 // =============================================
 
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+let canvas, ctx;
 
 function resize() {
+  if (!canvas) return;
   canvas.width = innerWidth;
   canvas.height = innerHeight;
 }
-addEventListener('resize', resize);
-resize();
 
 // =============================================
 // THÈMES (construits depuis les salles)
@@ -55,6 +65,7 @@ const FLIP_BUFFER = 12;       // Durée du buffer en frames
 
 let started = true;
 let audioCtx = null, musiqueActive = false;
+let musiqueInitialisee = false;
 
 /** Arrête la musique du jeu et ferme le contexte audio */
 function stopMusic() {
@@ -62,10 +73,9 @@ function stopMusic() {
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
 }
 
-/** Retour à la page d'accueil (sélection de monde) */
+/** Retour à la page d'accueil via callback SPA (pas de navigation) */
 function retourAccueil() {
-  stopMusic();
-  window.location.href = 'index.html';
+  if (window.arreterJeu) window.arreterJeu();
 }
 
 /** Sauvegarde la progression (monde débloqué) dans localStorage */
@@ -76,19 +86,9 @@ function sauverProgression(mondeFini) {
   }
 }
 
-// Le jeu démarre immédiatement (plus d'écran titre ici, il est dans index.html)
-// Démarrer la musique dès la première interaction utilisateur
-let musiqueInitialisee = false;
-function initMusiqueAuClic() {
-  if (musiqueInitialisee) return;
-  musiqueInitialisee = true;
-  startMusic();
-}
-for (const evt of ['click', 'pointerdown', 'touchstart', 'keydown']) {
-  addEventListener(evt, initMusiqueAuClic, { once: false });
-}
-
-addEventListener('keydown', e => {
+// Le keydown principal est enregistré dans demarrerJeu() pour pouvoir être nettoyé
+function _onKeydownPrincipal(e) {
+  if (!jeuActif) return;
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') e.preventDefault();
   if (e.code === 'Escape') {
     retourAccueil();
@@ -105,8 +105,9 @@ addEventListener('keydown', e => {
     }
   }
   keys[e.code] = true;
-});
-addEventListener('keyup', e => { keys[e.code] = false; });
+}
+
+function _onKeyup(e) { keys[e.code] = false; }
 
 // =============================================
 // ÉTAT DU JEU
@@ -584,36 +585,39 @@ function assemblerMonde() {
 }
 
 // =============================================
-// INITIALISATION DU MONDE
+// INITIALISATION DU MONDE (appelée par demarrerJeu)
 // =============================================
 
-// Construire les thèmes à partir des salles chargées
-THEMES = SALLES.map(l => l.theme);
+let mondeDonnees;
 
-const mondeDonnees = assemblerMonde();
-monde = mondeDonnees.grille;
-MONDE_COLS = mondeDonnees.totalW;
-MONDE_W = MONDE_COLS * TILE;
-MONDE_H = LIGNES * TILE;
+function _initialiserMonde() {
+  THEMES = SALLES.map(l => l.theme);
+  mondeDonnees = assemblerMonde();
+  monde = mondeDonnees.grille;
+  MONDE_COLS = mondeDonnees.totalW;
+  MONDE_W = MONDE_COLS * TILE;
+  MONDE_H = LIGNES * TILE;
+}
 
 // =============================================
 // PARALLAXE — décors de fond multi-couches
 // =============================================
 
 // 3 couches : lointaine (étoiles), moyenne (formes), proche (structures)
-const PARALLAXE_COUCHES = [
+let PARALLAXE_COUCHES = [
   { facteur: 0.05, opacite: 0.20, flou: 8 },   // Couche 0 : étoiles lointaines
   { facteur: 0.25, opacite: 0.10, flou: 4 },   // Couche 1 : formes géométriques
   { facteur: 0.50, opacite: 0.07, flou: 16 },  // Couche 2 : structures proches
 ];
 
 // Visibilité des couches parallaxe (toggle avec I, O, P)
-const parallaxeVisible = [true, true, true];
-addEventListener('keydown', e => {
+let parallaxeVisible = [true, true, true];
+function _onKeydownParallaxe(e) {
+  if (!jeuActif) return;
   if (e.code === 'KeyI') parallaxeVisible[0] = !parallaxeVisible[0];
   if (e.code === 'KeyO') parallaxeVisible[1] = !parallaxeVisible[1];
   if (e.code === 'KeyP') parallaxeVisible[2] = !parallaxeVisible[2];
-});
+}
 
 /** Générateur pseudo-aléatoire déterministe (mulberry32) */
 function creeRNG(seed) {
@@ -828,8 +832,10 @@ function initPlateformes() {
   }));
 }
 
-// Initialisation des checkpoints
-checkpoints = mondeDonnees.allCp.map(cp => ({ x: cp.c * TILE, y: cp.r * TILE, activated: false }));
+// Initialisation des checkpoints (appelée dans _initialiserEntites)
+function _initCheckpoints() {
+  checkpoints = mondeDonnees.allCp.map(cp => ({ x: cp.c * TILE, y: cp.r * TILE, activated: false }));
+}
 
 // Initialisation des plateformes éphémères (scan du monde pour trouver les tiles 17)
 // Positions originales des éphémères (ne change jamais, sert de référence pour le reset)
@@ -878,10 +884,11 @@ function groupeEphemeres(startR, startC) {
   }
   return groupe;
 }
-initEphemeres();
 
-// Initialisation des téléporteurs
-teleporteurs = mondeDonnees.allTp.map(tp => ({ ...tp, cooldown: 0 }));
+// Initialisation des téléporteurs (appelée dans _initialiserEntites)
+function _initTeleporteurs() {
+  teleporteurs = mondeDonnees.allTp.map(tp => ({ ...tp, cooldown: 0 }));
+}
 
 // =============================================
 // GESTION DU JOUEUR
@@ -2792,7 +2799,8 @@ function draw() {
 }
 
 // Gestion clavier (un seul listener pour toutes les actions)
-addEventListener('keydown', e => {
+function _onKeydownActions(e) {
+  if (!jeuActif) return;
   // Touche R : restart / respawn
   if (e.code === 'KeyR' && started) {
     respawn();
@@ -2851,7 +2859,7 @@ addEventListener('keydown', e => {
   salleIdx = idx;
   salleMin = Math.max(0, salleIdx - 1);
   salleMax = Math.min(nbSalles - 1, salleIdx + 1);
-});
+}
 
 // =============================================
 // MUSIQUE
@@ -3493,19 +3501,95 @@ function sfx(type) {
 }
 
 // =============================================
-// LANCEMENT
+// LANCEMENT / ARRÊT (API SPA)
 // =============================================
 
-initJoueur();
-initEnnemis();
-initPlateformes();
-echelle = canvas.height / (LIGNES * TILE);
-vueW = canvas.width / echelle;
-camera.x = joueur.x + joueur.w / 2 - vueW / 2;
-camera.y = 0;
-
-(function loop() {
+function _loop() {
+  if (!jeuActif) return;
   update();
   draw();
-  requestAnimationFrame(loop);
+  loopId = requestAnimationFrame(_loop);
+}
+
+/** Démarre le jeu avec les salles chargées dans SALLES[].
+ *  callbackRetour : fonction appelée quand le joueur appuie sur ESC. */
+window.demarrerJeu = function(callbackRetour) {
+  if (jeuActif) window.arreterJeu();
+
+  _callbackRetour = callbackRetour || null;
+  jeuActif = true;
+  started = true;
+
+  // Canvas
+  canvas = document.getElementById('game');
+  ctx = canvas.getContext('2d');
+  resize();
+
+  // Enregistrer les event listeners
+  _listenersActifs = [
+    ['resize', resize],
+    ['keydown', _onKeydownPrincipal],
+    ['keyup', _onKeyup],
+    ['keydown', _onKeydownParallaxe],
+    ['keydown', _onKeydownActions]
+  ];
+  for (const [evt, fn] of _listenersActifs) addEventListener(evt, fn);
+
+  // Initialiser le monde
+  _initialiserMonde();
+  _initCheckpoints();
+  ephemeresOriginales = null;
+  initEphemeres();
+  _initTeleporteurs();
+  genererParallaxe();
+
+  // Réinitialiser l'état
+  deaths = 0; time = 0; tremblement = 0; flashMort = 0;
+  clesEnPoche = 0; trinketsCollectes = 0; trinketsRamasses.clear();
+  bossGemsCollectes = 0; bossVaincuAffiche = false; bossLoots = [];
+  particules = [];
+  parallaxeVisible = [true, true, true];
+  musiqueInitialisee = false;
+
+  // Lancer le joueur et les entités
+  initJoueur();
+  initEnnemis();
+  initPlateformes();
+
+  // Caméra
+  echelle = canvas.height / (LIGNES * TILE);
+  vueW = canvas.width / echelle;
+  camera.x = joueur.x + joueur.w / 2 - vueW / 2;
+  camera.y = 0;
+
+  // Démarrer la musique immédiatement (en SPA, le geste utilisateur a déjà eu lieu)
+  startMusic();
+
+  // Boucle de jeu
+  _loop();
+};
+
+/** Arrête le jeu proprement et retourne au menu */
+window.arreterJeu = function() {
+  jeuActif = false;
+  started = false;
+
+  // Arrêter la boucle de jeu
+  if (loopId) { cancelAnimationFrame(loopId); loopId = null; }
+
+  // Arrêter la musique
+  stopMusic();
+
+  // Nettoyer les event listeners
+  for (const [evt, fn] of _listenersActifs) removeEventListener(evt, fn);
+  _listenersActifs = [];
+
+  // Vider l'état des touches
+  for (const k in keys) delete keys[k];
+
+  // Appeler le callback de retour
+  if (_callbackRetour) _callbackRetour();
+};
+
+// Fermer l'IIFE
 })();

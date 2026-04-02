@@ -194,21 +194,22 @@ Seules **3 salles au maximum** sont actives simultanément : la salle courante (
 
 | Fichier | Rôle |
 |---------|------|
-| `index.html` | Page d'accueil globale. Affiche l'écran titre et la sélection de monde. Indépendante du moteur de jeu. |
-| `WWWWWW.html` | Point d'entrée d'un monde. Charge les scripts dans l'ordre (salles du monde courant puis moteur), déclare le registre global `SALLES = []`. Reçoit le monde à charger via paramètre URL (`?monde=1`). |
+| `index.html` | **Point d'entrée unique (SPA)**. Page d'accueil, sélection de monde, et jeu dans la même page. Charge tous les scripts au démarrage. |
 | `css/style.css` | Styles de l'écran titre (glow cyan, animation pulsante) et du canvas (rendu pixelisé). |
-| `scripts/engine.js` | Moteur complet : boucle de jeu, physique, collisions, rendu, caméra, ennemis, boss, particules, musique, SFX. |
-| `scripts/title-vortex.js` | Effet visuel vortex de l'écran titre. |
-| `scripts/jukebox.js` | Jukebox : définition des morceaux musicaux référencés par les salles via `window.JUKEBOX_PAR_NOM`. |
+| `scripts/engine.js` | Moteur complet encapsulé en IIFE. Expose `window.demarrerJeu(callback)` et `window.arreterJeu()` pour le mode SPA. |
+| `scripts/title-vortex.js` | Effet visuel vortex de l'écran titre. Démarrage explicite via `titleVortexStart()`. |
+| `scripts/jukebox.js` | Jukebox : définition des morceaux musicaux. Construction du DOM via `jukeboxConstruireDOM(cibleId)`. |
+| `scripts/mondes.js` | Registre global des 8 mondes (`window.MONDES`). |
 | `salles/monde1/salle_001_nom.js` | Définition d'une salle du monde 1. Chaque fichier fait `SALLES.push({...})`. |
 | `salles/monde2/salle_001_nom.js` | Idem pour le monde 2, etc. (8 dossiers `monde1/` à `monde8/`). |
 
-### 7.5 Séquence de démarrage
-1. Le joueur arrive sur `index.html` (page d'accueil) et sélectionne un monde
-2. Redirection vers `WWWWWW.html?monde=N`
-3. Le HTML charge dynamiquement les 8 `salle_*.js` du monde N → remplissage du tableau global `SALLES[]`
-4. `engine.js` se charge en dernier : fusionne toutes les salles en un monde contigu via `assemblerMonde()`, initialise le joueur, les ennemis, les plateformes
-5. La boucle `requestAnimationFrame` démarre, attend ESPACE pour commencer
+### 7.5 Séquence de démarrage (SPA)
+1. `index.html` charge tous les scripts (vortex, jukebox, mondes, engine)
+2. Phase 1 : écran d'intro sobre (étoiles + "WWWWWW")
+3. ESPACE → Phase 2 : menu (vortex, jukebox, barrette RAM de sélection des mondes)
+4. Sélection d'un monde → chargement dynamique des 8 `salle_*.js` du monde
+5. Appel de `window.demarrerJeu(callbackRetour)` → le moteur assemble le monde, lance la boucle de jeu
+6. ESC → `window.arreterJeu()` → callback retour au menu (sans rechargement de page, l'AudioContext est préservé)
 
 ## 8. Format des salles
 

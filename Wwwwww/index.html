@@ -5,7 +5,7 @@
     <title>WWWWWW</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-      /* ===== Couche unique de contenu (les deux phases) ===== */
+      /* ===== Scène unique (les deux phases) ===== */
       #scene {
         position: absolute; inset: 0; z-index: 25;
         display: flex; flex-direction: column;
@@ -14,7 +14,7 @@
         pointer-events: none;
       }
 
-      /* Le titre WWWWWW — anime sa position et sa taille */
+      /* Titre WWWWWW — anime position et taille */
       #titre-w {
         font-family: 'Courier New', monospace;
         font-size: min(12vw, 10vh);
@@ -22,7 +22,7 @@
         color: #0ff;
         text-shadow: 0 0 20px #0ff, 0 0 40px #08f, 0 0 80px #04f;
         animation: pulse 2s ease-in-out infinite;
-        transition: font-size 0.8s ease, transform 0.8s ease, margin-bottom 0.8s ease;
+        transition: font-size 0.8s ease, margin-bottom 0.8s ease;
         margin-bottom: 0;
       }
       #titre-w.menu-pos {
@@ -30,7 +30,7 @@
         margin-bottom: 0.5vh;
       }
 
-      /* Sous-titre — anime sa position */
+      /* Sous-titre — anime position */
       #sous-titre {
         font-family: 'Courier New', monospace;
         font-size: min(2.2vw, 2.5vh);
@@ -40,21 +40,23 @@
         transition: font-size 0.8s ease, margin-bottom 0.8s ease;
         margin-bottom: 1vh;
         min-height: 1.4em;
-        order: -1; /* Au-dessus du titre en phase 1 */
+        order: -1;
       }
       #sous-titre.menu-pos {
         font-size: min(1.8vw, 2vh);
         margin-bottom: 2vh;
-        order: 1; /* Sous le titre en phase 2 */
+        order: 1;
         animation: none;
       }
 
-      /* Canvas parallaxe sobre (étoiles) */
-      #stars-bg {
-        position: absolute; inset: 0; z-index: 10;
-      }
+      /* Parallaxe sobre (étoiles) */
+      #stars-bg { position: absolute; inset: 0; z-index: 10; }
 
-      /* Zone de contenu central (RAM ou Jukebox) — invisible en phase 1 */
+      /* Canvas de jeu (caché par défaut) */
+      #game { display: none; position: absolute; inset: 0; z-index: 30; }
+      #game.visible { display: block; }
+
+      /* Zone de contenu central (RAM ou Jukebox) */
       #contenu-central {
         width: min(90vw, 1100px);
         min-height: 30vh;
@@ -66,30 +68,18 @@
         pointer-events: none;
         transition: opacity 0.8s ease 0.4s;
       }
-      #contenu-central.visible {
-        opacity: 1;
-        pointer-events: auto;
-      }
+      #contenu-central.visible { opacity: 1; pointer-events: auto; }
 
-      /* Canvas de la barrette RAM */
-      #ram-canvas {
-        display: block;
-        max-width: 100%;
-        cursor: pointer;
-      }
+      #ram-canvas { display: block; max-width: 100%; cursor: pointer; }
 
-      /* Jukebox caché par défaut en phase 2 */
       #jukebox-wrap { display: none; width: 100%; }
       #jukebox-wrap.visible { display: block; }
       #jukebox-host {
-        position: relative;
-        inset: auto;
-        z-index: auto;
-        padding: 0;
-        width: min(96vw, 1200px);
+        position: relative; inset: auto; z-index: auto;
+        padding: 0; width: min(96vw, 1200px);
       }
 
-      /* Commandes — invisibles en phase 1 */
+      /* Commandes */
       #commandes {
         order: 3;
         margin-top: 1.5vh;
@@ -112,7 +102,10 @@
     <!-- Canvas vortex (phase 2, masqué au départ) -->
     <canvas id="title-bg" style="display:none"></canvas>
 
-    <!-- Scène unique avec éléments animés -->
+    <!-- Canvas de jeu (SPA : même page) -->
+    <canvas id="game"></canvas>
+
+    <!-- Scène : intro + menu -->
     <div id="scene">
       <div id="sous-titre">Appuyez sur ESPACE pour entrer dans</div>
       <div id="titre-w">WWWWWW</div>
@@ -132,22 +125,26 @@
       </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Registre global des salles (rempli dynamiquement par chargerSalles) -->
+    <script>var SALLES = [];</script>
+
+    <!-- Scripts : vortex, jukebox, mondes, moteur -->
     <script src="scripts/title-vortex.js"></script>
     <script src="scripts/jukebox.js"></script>
     <script src="scripts/mondes.js"></script>
+    <script src="scripts/engine.js"></script>
 
     <script>
     (function() {
       'use strict';
 
       // ===== État =====
-      let phase = 1;
+      let phase = 1;           // 1 = intro, 2 = menu, 3 = jeu
       let jukeboxAffiche = false;
-      let mondeSelectionne = 0; // Index 0-based du monde sélectionné
-      const progression = parseInt(localStorage.getItem('wwwwww_progression') || '1');
+      let mondeSelectionne = 0;
+      let progression = parseInt(localStorage.getItem('wwwwww_progression') || '1');
 
-      // Initialiser mondeSelectionne au premier monde disponible
+      // Premier monde disponible
       for (let i = 0; i < MONDES.length; i++) {
         if (i + 1 <= progression && MONDES[i].salles.length > 0) {
           mondeSelectionne = i; break;
@@ -155,6 +152,7 @@
       }
 
       // ===== Références DOM =====
+      const sceneEl    = document.getElementById('scene');
       const titreW     = document.getElementById('titre-w');
       const sousTitre  = document.getElementById('sous-titre');
       const contenuEl  = document.getElementById('contenu-central');
@@ -162,6 +160,7 @@
       const ramCanvas  = document.getElementById('ram-canvas');
       const ramCtx     = ramCanvas.getContext('2d');
       const jbWrap     = document.getElementById('jukebox-wrap');
+      const gameCanvas = document.getElementById('game');
       const starsCvs   = document.getElementById('stars-bg');
       const starsCtx   = starsCvs.getContext('2d');
 
@@ -210,7 +209,7 @@
       initEtoiles();
       drawEtoiles();
 
-      // ===== Animation de scramble du sous-titre =====
+      // ===== Scramble du sous-titre =====
       const TEXTE_INTRO = 'Appuyez sur ESPACE pour entrer dans';
       const TEXTE_MENU  = 'Sélectionnez un monde puis appuyez sur ESPACE';
       const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*<>{}[]|/\\=+-~^';
@@ -218,42 +217,29 @@
       function scrambleTransition(de, vers, dureeMs, callback) {
         const longueurMax = Math.max(de.length, vers.length);
         const debut = performance.now();
-        const dureeTotale = dureeMs;
-
         function frame() {
           const elapsed = performance.now() - debut;
-          const prog = Math.min(1, elapsed / dureeTotale);
-
+          const prog = Math.min(1, elapsed / dureeMs);
           let texte = '';
           for (let i = 0; i < longueurMax; i++) {
-            // Chaque caractère se "résout" progressivement de gauche à droite
-            const seuil = (i / longueurMax) * 0.7; // Les premiers se résolvent avant
+            const seuil = (i / longueurMax) * 0.7;
             const charProg = Math.max(0, (prog - seuil) / (1 - seuil));
-
             if (charProg >= 1) {
-              // Caractère résolu → afficher le caractère cible
               texte += i < vers.length ? vers[i] : '';
             } else if (charProg > 0) {
-              // En cours de scramble
               texte += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
             } else {
-              // Pas encore commencé → afficher le caractère source
               texte += i < de.length ? de[i] : ' ';
             }
           }
           sousTitre.textContent = texte;
-
-          if (prog < 1) {
-            requestAnimationFrame(frame);
-          } else {
-            sousTitre.textContent = vers;
-            if (callback) callback();
-          }
+          if (prog < 1) requestAnimationFrame(frame);
+          else { sousTitre.textContent = vers; if (callback) callback(); }
         }
         requestAnimationFrame(frame);
       }
 
-      // ===== Dessin de la barrette RAM style néon WWWWWW =====
+      // ===== Dessin de la barrette RAM — style néon bleu WWWWWW =====
 
       const RAM_W = 1000;
       const RAM_H = 360;
@@ -284,45 +270,107 @@
         const ctx = ramCtx;
         const t = performance.now() * 0.001;
         puceZones = [];
-
         ctx.clearRect(0, 0, RAM_W, RAM_H);
 
-        // --- PCB (corps) : fond très sombre avec contour néon ---
+        // --- PCB : fond bleu foncé avec circuit imprimé néon ---
         const pcbY = 28;
         const pcbH = 240;
 
-        // Glow du PCB
-        ctx.shadowColor = '#0f4';
-        ctx.shadowBlur = 8;
-        ctx.fillStyle = 'rgba(0,20,0,0.6)';
-        ctx.strokeStyle = '#0a5';
+        // Fond bleu foncé
+        ctx.shadowColor = '#06f';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#040820';
+        ctx.strokeStyle = '#1a5fff';
         ctx.lineWidth = 2;
         roundRect(ctx, 10, pcbY, RAM_W - 20, pcbH, 8);
         ctx.fill(); ctx.stroke();
         ctx.shadowBlur = 0;
 
-        // Pistes de circuit néon
-        ctx.lineWidth = 0.8;
-        for (let i = 0; i < 14; i++) {
-          const ly = pcbY + 16 + i * 16;
-          const hue = (i * 25 + t * 10) % 360;
-          ctx.strokeStyle = `hsla(${hue},100%,50%,0.06)`;
+        // --- Circuit imprimé : pistes néon bleu dessinées en JS ---
+        ctx.save();
+        ctx.beginPath();
+        roundRect(ctx, 10, pcbY, RAM_W - 20, pcbH, 8);
+        ctx.clip();
+
+        ctx.lineWidth = 1;
+        ctx.lineCap = 'round';
+
+        // Pistes horizontales principales
+        for (let i = 0; i < 16; i++) {
+          const ly = pcbY + 12 + i * 15;
+          const hue = (200 + i * 5) % 260;
+          ctx.strokeStyle = `hsla(${hue},100%,50%,0.07)`;
           ctx.beginPath();
-          ctx.moveTo(20, ly);
-          ctx.lineTo(RAM_W - 20, ly);
+          ctx.moveTo(15, ly);
+          ctx.lineTo(RAM_W - 15, ly);
           ctx.stroke();
         }
 
-        // Encoche centrale (notch)
+        // Pistes de circuit : segments orthogonaux + diagonales
+        const rng = mulberry32(42);
+        for (let trace = 0; trace < 25; trace++) {
+          const sx = 30 + rng() * (RAM_W - 60);
+          const sy = pcbY + 10 + rng() * (pcbH - 20);
+          const nbSegs = 3 + Math.floor(rng() * 5);
+          let cx = sx, cy = sy;
+
+          const hue = 200 + rng() * 40;
+          const alpha = 0.05 + rng() * 0.08;
+          ctx.strokeStyle = `hsla(${hue},100%,55%,${alpha})`;
+          ctx.lineWidth = 0.5 + rng() * 1;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+
+          for (let s = 0; s < nbSegs; s++) {
+            const dir = rng();
+            const len = 20 + rng() * 80;
+            if (dir < 0.35) { cx += len; }
+            else if (dir < 0.6) { cy += (rng() > 0.5 ? 1 : -1) * len * 0.5; }
+            else if (dir < 0.8) { cx += len * 0.7; cy += (rng() > 0.5 ? 1 : -1) * len * 0.3; }
+            else { cx -= len * 0.5; }
+            cx = Math.max(15, Math.min(RAM_W - 15, cx));
+            cy = Math.max(pcbY + 5, Math.min(pcbY + pcbH - 5, cy));
+            ctx.lineTo(cx, cy);
+          }
+          ctx.stroke();
+
+          // Petits pads aux extrémités
+          ctx.fillStyle = `hsla(${hue},100%,55%,${alpha * 1.5})`;
+          ctx.fillRect(sx - 2, sy - 2, 4, 4);
+          ctx.fillRect(cx - 2, cy - 2, 4, 4);
+        }
+
+        // Vias (petits ronds connecteurs)
+        for (let v = 0; v < 30; v++) {
+          const vx = 40 + rng() * (RAM_W - 80);
+          const vy = pcbY + 15 + rng() * (pcbH - 30);
+          ctx.fillStyle = `hsla(220,100%,60%,0.1)`;
+          ctx.beginPath();
+          ctx.arc(vx, vy, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+
+        // Bordure néon bleu du PCB (par-dessus le clip)
+        ctx.strokeStyle = '#1a5fff';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#06f';
+        ctx.shadowBlur = 8;
+        roundRect(ctx, 10, pcbY, RAM_W - 20, pcbH, 8);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Encoche centrale
         const notchW = 28, notchH = 12;
         const notchX = RAM_W / 2 - notchW / 2;
-        ctx.fillStyle = '#020202';
-        ctx.strokeStyle = '#0a5';
+        ctx.fillStyle = '#020208';
+        ctx.strokeStyle = '#1a5fff';
         ctx.lineWidth = 1;
         ctx.fillRect(notchX, pcbY + pcbH - 1, notchW, notchH);
         ctx.strokeRect(notchX, pcbY + pcbH - 1, notchW, notchH);
 
-        // --- Connecteur RGB arc-en-ciel (comme les lignes de gravité) ---
+        // --- Connecteur RGB arc-en-ciel (lignes de gravité) ---
         const connY = pcbY + pcbH + notchH - 2;
         const connH = 30;
         const nbPins = 64;
@@ -332,7 +380,6 @@
           const px = 40 + i * pinW;
           if (px > notchX - 4 && px < notchX + notchW + 4) continue;
 
-          // Dégradé HSL le long de la barrette, défilant dans le temps
           const hue = ((i / nbPins) * 360 + t * 80) % 360;
           ctx.fillStyle = `hsl(${hue},100%,55%)`;
           ctx.shadowColor = `hsl(${hue},100%,60%)`;
@@ -341,13 +388,17 @@
         }
         ctx.shadowBlur = 0;
 
-        // Contour du connecteur
-        ctx.strokeStyle = `hsl(${(t * 60) % 360},100%,60%)`;
+        // Contour du connecteur RGB
+        const connHue = (t * 60) % 360;
+        ctx.strokeStyle = `hsl(${connHue},100%,60%)`;
         ctx.lineWidth = 1.5;
+        ctx.shadowColor = `hsl(${connHue},100%,60%)`;
+        ctx.shadowBlur = 6;
         ctx.strokeRect(38, connY - 1, RAM_W - 76, connH + 2);
+        ctx.shadowBlur = 0;
 
-        // Label "WWWWWW-RAM-64" néon
-        ctx.fillStyle = 'rgba(0,255,100,0.2)';
+        // Label néon
+        ctx.fillStyle = 'rgba(26,95,255,0.2)';
         ctx.font = 'bold 10px "Courier New", monospace';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'top';
@@ -368,34 +419,25 @@
 
           puceZones.push({ x: px - 8, y: py - PATTE_H - 4, w: PUCE_W + 16, h: PUCE_H + PATTE_H * 2 + 40, monde: num, disponible });
 
-          // --- 8 pattes (4 en haut, 4 en bas) ---
+          // --- Pattes (4 haut + 4 bas = 8 salles) ---
           for (let s = 0; s < 8; s++) {
             const enHaut = s < 4;
             const idx = enHaut ? s : s - 4;
             const patteX = px + PATTE_ESP + idx * (PATTE_W + PATTE_ESP);
             const patteY = enHaut ? py - PATTE_H : py + PUCE_H;
 
-            let couleur = disponible ? accent : (debloque ? '#333' : '#1a1a1a');
-            let alpha = 1;
+            const couleur = disponible ? accent : (debloque ? '#333' : '#1a1a1a');
+            let alpha = disponible ? (0.6 + 0.4 * Math.sin(t * 2.5 + m * 0.9 + s * 0.6)) : 0.35;
 
-            if (disponible) {
-              alpha = 0.6 + 0.4 * Math.sin(t * 2.5 + m * 0.9 + s * 0.6);
-            } else {
-              alpha = 0.35;
-            }
-
-            // Glow des pattes
             if (disponible) {
               ctx.shadowColor = accent;
               ctx.shadowBlur = selectionne ? 10 : 4;
             }
 
-            ctx.fillStyle = couleur;
             ctx.globalAlpha = alpha;
+            ctx.fillStyle = couleur;
             roundRect(ctx, patteX, patteY, PATTE_W, PATTE_H, 1);
             ctx.fill();
-
-            // Contour néon des pattes
             ctx.strokeStyle = couleur;
             ctx.lineWidth = 0.8;
             ctx.globalAlpha = alpha * 0.6;
@@ -407,19 +449,15 @@
           }
 
           // --- Corps de la puce ---
-          const glowIntensity = selectionne ? (12 + 6 * Math.sin(t * 4)) : (disponible ? 6 : 0);
+          const glowI = selectionne ? (12 + 6 * Math.sin(t * 4)) : (disponible ? 6 : 0);
 
-          if (glowIntensity > 0) {
-            ctx.shadowColor = accent;
-            ctx.shadowBlur = glowIntensity;
-          }
+          if (glowI > 0) { ctx.shadowColor = accent; ctx.shadowBlur = glowI; }
 
-          ctx.fillStyle = selectionne ? 'rgba(20,20,30,0.9)' : 'rgba(8,8,12,0.85)';
+          ctx.fillStyle = selectionne ? 'rgba(10,10,24,0.92)' : 'rgba(6,6,14,0.88)';
           ctx.strokeStyle = disponible ? accent : '#222';
           ctx.lineWidth = selectionne ? 2.5 : (disponible ? 1.5 : 1);
           roundRect(ctx, px, py, PUCE_W, PUCE_H, 5);
           ctx.fill(); ctx.stroke();
-
           ctx.shadowBlur = 0;
 
           // Bordure de sélection pulsante
@@ -431,27 +469,25 @@
             ctx.stroke();
           }
 
-          // Point de repère (coin haut-gauche)
+          // Point de repère
           ctx.fillStyle = disponible ? accent : '#222';
-          ctx.beginPath();
-          ctx.arc(px + 11, py + 11, 3.5, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.beginPath(); ctx.arc(px + 11, py + 11, 3.5, 0, Math.PI * 2); ctx.fill();
 
-          // Numéro du monde
+          // Numéro
           ctx.fillStyle = disponible ? accent : '#444';
           ctx.font = 'bold 18px "Courier New", monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(num, px + PUCE_W / 2, py + PUCE_H / 2);
 
-          // Nom du monde sous le chipset
+          // Nom du monde
           const nomCourt = monde.nom.replace(/^Monde \d+ — /, '');
           ctx.fillStyle = disponible ? (selectionne ? '#fff' : 'rgba(255,255,255,0.55)') : 'rgba(255,255,255,0.12)';
           ctx.font = '10px "Courier New", monospace';
           ctx.textBaseline = 'top';
           ctx.fillText(nomCourt, px + PUCE_W / 2, py + PUCE_H + PATTE_H + 6);
 
-          // Cadenas néon pour les mondes verrouillés
+          // Cadenas néon rouge
           if (!debloque) {
             ctx.fillStyle = 'rgba(255,80,80,0.25)';
             ctx.font = '13px "Courier New", monospace';
@@ -459,6 +495,17 @@
             ctx.fillText('\u2717', px + PUCE_W / 2, py + PUCE_H / 2 + 14);
           }
         }
+      }
+
+      // RNG déterministe pour le circuit imprimé
+      function mulberry32(seed) {
+        let s = seed | 0;
+        return function() {
+          s = (s + 0x6D2B79F5) | 0;
+          let t = Math.imul(s ^ (s >>> 15), 1 | s);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
       }
 
       function roundRect(ctx, x, y, w, h, r) {
@@ -508,15 +555,14 @@
         ramCanvas.style.cursor = surPuce ? 'pointer' : 'default';
       });
 
-      // Animation continue de la RAM
+      // Animation RAM
       function animerRAM() {
         if (phase === 2 && !jukeboxAffiche) dessinerRAM();
         requestAnimationFrame(animerRAM);
       }
 
-      // ===== Sélection clavier des mondes =====
+      // ===== Navigation clavier entre mondes =====
       function selectionnerMonde(direction) {
-        // Trouver le prochain monde disponible dans la direction donnée
         let idx = mondeSelectionne;
         for (let tentative = 0; tentative < 8; tentative++) {
           idx = (idx + direction + 8) % 8;
@@ -528,45 +574,56 @@
         }
       }
 
+      // ===== Chargement dynamique des salles d'un monde =====
+      // Les scripts déjà chargés sont tracés pour éviter les doublons
+      let scriptsCharges = new Set();
+
+      async function chargerSalles(mondeIdx) {
+        const monde = MONDES[mondeIdx];
+        // Vider le tableau global SALLES
+        window.SALLES = [];
+        for (const chemin of monde.salles) {
+          const src = 'salles/' + chemin;
+          // Toujours recharger car SALLES est vidé
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src + '?t=' + Date.now(); // Cache-bust pour forcer le re-push
+            s.onload = resolve;
+            s.onerror = reject;
+            document.body.appendChild(s);
+          });
+        }
+      }
+
       // ===== Transition Phase 1 → Phase 2 =====
       function passerAuMenu() {
         if (phase !== 1) return;
         phase = 2;
 
-        // Animer le titre vers sa position menu
         titreW.classList.add('menu-pos');
         sousTitre.classList.add('menu-pos');
-
-        // Scramble du sous-titre
         scrambleTransition(TEXTE_INTRO, TEXTE_MENU, 900, null);
 
-        // Faire apparaître le contenu et les commandes
         setTimeout(() => {
           contenuEl.classList.add('visible');
           cmdEl.classList.add('visible');
         }, 200);
 
-        // Démarrer le vortex
         if (window.titleVortexStart) window.titleVortexStart();
-
-        // Arrêter les étoiles
         setTimeout(() => {
           starsRunning = false;
           starsCvs.style.display = 'none';
         }, 1000);
 
-        // Lancer une musique aléatoire
         if (window.jukeboxPlay && window.jukeboxNbPistes) {
           const nb = window.jukeboxNbPistes();
           window.jukeboxPlay(Math.floor(Math.random() * nb));
         }
 
-        // Construire le DOM du jukebox
         if (window.jukeboxConstruireDOM) {
           window.jukeboxConstruireDOM('jukebox-host');
         }
 
-        // Démarrer l'animation de la RAM
         dessinerRAM();
         animerRAM();
       }
@@ -584,21 +641,56 @@
         }
       }
 
-      // ===== Lancer un monde =====
-      function lancerMonde(num) {
+      // ===== Lancer un monde (SPA) =====
+      async function lancerMonde(num) {
+        if (phase === 3) return;
+
+        // Arrêter le jukebox
         if (window.jukeboxStop) window.jukeboxStop();
+
+        // Masquer le menu, afficher le canvas de jeu
+        sceneEl.style.display = 'none';
+        document.getElementById('title-bg').style.display = 'none';
         if (window.titleVortexStop) window.titleVortexStop();
-        window.location.href = 'WWWWWW.html?monde=' + num;
+        gameCanvas.classList.add('visible');
+
+        // Stocker l'index du monde courant
+        window.MONDE_COURANT = num - 1;
+
+        // Charger les salles
+        await chargerSalles(num - 1);
+
+        phase = 3;
+
+        // Démarrer le moteur avec callback de retour
+        window.demarrerJeu(function retourAuMenu() {
+          phase = 2;
+          gameCanvas.classList.remove('visible');
+          sceneEl.style.display = '';
+          document.getElementById('title-bg').style.display = 'block';
+          if (window.titleVortexStart) window.titleVortexStart();
+
+          // Relire la progression (elle a pu changer si le boss a été battu)
+          progression = parseInt(localStorage.getItem('wwwwww_progression') || '1');
+
+          // Relancer le jukebox
+          if (window.jukeboxPlay && window.jukeboxNbPistes) {
+            const nb = window.jukeboxNbPistes();
+            window.jukeboxPlay(Math.floor(Math.random() * nb));
+          }
+        });
       }
 
       // ===== Clavier =====
       addEventListener('keydown', function(e) {
+        // Ignorer en phase jeu (le moteur gère ses propres inputs)
+        if (phase === 3) return;
+
         if (e.code === 'Space') {
           e.preventDefault();
           if (phase === 1) {
             passerAuMenu();
           } else if (phase === 2 && !jukeboxAffiche) {
-            // Lancer le monde sélectionné
             const num = mondeSelectionne + 1;
             const m = MONDES[mondeSelectionne];
             if (num <= progression && m && m.salles.length > 0) {
@@ -609,7 +701,6 @@
         }
 
         if (phase === 2) {
-          // Navigation gauche/droite
           if (e.code === 'ArrowLeft' || e.code === 'KeyQ') {
             selectionnerMonde(-1);
             return;
@@ -622,7 +713,6 @@
             toggleJukebox();
             return;
           }
-          // Touches numériques 1-8
           const num = parseInt(e.key);
           if (num >= 1 && num <= 8) {
             const m = MONDES[num - 1];

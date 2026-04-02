@@ -3,7 +3,7 @@
     "Wwwwww": {
       "commandName": "Project",
       "launchBrowser": true,
-      "launchUrl": "WWWWWW.html",
+      "launchUrl": "index.html",
       "applicationUrl": "http://localhost:5000"
     }
   }

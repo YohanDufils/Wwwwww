@@ -6,7 +6,7 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 var app = builder.Build();
 app.UseDefaultFiles(new DefaultFilesOptions
 {
-    DefaultFileNames = new[] { "WWWWWW.html" }
+    DefaultFileNames = new[] { "index.html" }
 });
 app.UseStaticFiles();
 app.Run();
