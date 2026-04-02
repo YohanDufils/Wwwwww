@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Wwwwww": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "WWWWWW.html",
+      "applicationUrl": "http://localhost:5000"
+    }
+  }
+}

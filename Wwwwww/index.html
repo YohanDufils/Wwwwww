@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8">
+    <title>WWWWWW</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+      /* ===== Couche unique de contenu (les deux phases) ===== */
+      #scene {
+        position: absolute; inset: 0; z-index: 25;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        color: #fff; text-align: center;
+        pointer-events: none;
+      }
+
+      /* Le titre WWWWWW — anime sa position et sa taille */
+      #titre-w {
+        font-family: 'Courier New', monospace;
+        font-size: min(12vw, 10vh);
+        letter-spacing: min(1.5vw, 16px);
+        color: #0ff;
+        text-shadow: 0 0 20px #0ff, 0 0 40px #08f, 0 0 80px #04f;
+        animation: pulse 2s ease-in-out infinite;
+        transition: font-size 0.8s ease, transform 0.8s ease, margin-bottom 0.8s ease;
+        margin-bottom: 0;
+      }
+      #titre-w.menu-pos {
+        font-size: min(10vw, 8vh);
+        margin-bottom: 0.5vh;
+      }
+
+      /* Sous-titre — anime sa position */
+      #sous-titre {
+        font-family: 'Courier New', monospace;
+        font-size: min(2.2vw, 2.5vh);
+        color: #8ff;
+        text-shadow: 0 0 6px rgba(0,255,255,0.4);
+        animation: blink 1.8s ease-in-out infinite;
+        transition: font-size 0.8s ease, margin-bottom 0.8s ease;
+        margin-bottom: 1vh;
+        min-height: 1.4em;
+        order: -1; /* Au-dessus du titre en phase 1 */
+      }
+      #sous-titre.menu-pos {
+        font-size: min(1.8vw, 2vh);
+        margin-bottom: 2vh;
+        order: 1; /* Sous le titre en phase 2 */
+        animation: none;
+      }
+
+      /* Canvas parallaxe sobre (étoiles) */
+      #stars-bg {
+        position: absolute; inset: 0; z-index: 10;
+      }
+
+      /* Zone de contenu central (RAM ou Jukebox) — invisible en phase 1 */
+      #contenu-central {
+        width: min(90vw, 1100px);
+        min-height: 30vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        order: 2;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.8s ease 0.4s;
+      }
+      #contenu-central.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      /* Canvas de la barrette RAM */
+      #ram-canvas {
+        display: block;
+        max-width: 100%;
+        cursor: pointer;
+      }
+
+      /* Jukebox caché par défaut en phase 2 */
+      #jukebox-wrap { display: none; width: 100%; }
+      #jukebox-wrap.visible { display: block; }
+      #jukebox-host {
+        position: relative;
+        inset: auto;
+        z-index: auto;
+        padding: 0;
+        width: min(96vw, 1200px);
+      }
+
+      /* Commandes — invisibles en phase 1 */
+      #commandes {
+        order: 3;
+        margin-top: 1.5vh;
+        color: #f0f;
+        font-family: 'Courier New', monospace;
+        font-size: min(1.6vw, 1.8vh);
+        text-shadow: 0 0 6px #f0f;
+        line-height: 2.2;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.8s ease 0.6s;
+      }
+      #commandes.visible { opacity: 1; pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <!-- Parallaxe sobre (étoiles, phase 1) -->
+    <canvas id="stars-bg"></canvas>
+
+    <!-- Canvas vortex (phase 2, masqué au départ) -->
+    <canvas id="title-bg" style="display:none"></canvas>
+
+    <!-- Scène unique avec éléments animés -->
+    <div id="scene">
+      <div id="sous-titre">Appuyez sur ESPACE pour entrer dans</div>
+      <div id="titre-w">WWWWWW</div>
+      <div id="contenu-central">
+        <canvas id="ram-canvas"></canvas>
+        <div id="jukebox-wrap">
+          <div id="jukebox-host"></div>
+        </div>
+      </div>
+      <div id="commandes">
+        <strong>◀ ▶</strong> ou <strong>Q / D</strong> : Sélectionner un monde<br>
+        <strong>ESPACE</strong> : Lancer le monde<br>
+        <strong>▲ ▼</strong> : Inverser la gravité (en jeu)<br>
+        <strong>R</strong> : Recommencer (en jeu)<br>
+        <strong>ÉCHAP</strong> : Retourner à l'accueil<br>
+        <strong>J</strong> : Jukebox
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="scripts/title-vortex.js"></script>
+    <script src="scripts/jukebox.js"></script>
+    <script src="scripts/mondes.js"></script>
+
+    <script>
+    (function() {
+      'use strict';
+
+      // ===== État =====
+      let phase = 1;
+      let jukeboxAffiche = false;
+      let mondeSelectionne = 0; // Index 0-based du monde sélectionné
+      const progression = parseInt(localStorage.getItem('wwwwww_progression') || '1');
+
+      // Initialiser mondeSelectionne au premier monde disponible
+      for (let i = 0; i < MONDES.length; i++) {
+        if (i + 1 <= progression && MONDES[i].salles.length > 0) {
+          mondeSelectionne = i; break;
+        }
+      }
+
+      // ===== Références DOM =====
+      const titreW     = document.getElementById('titre-w');
+      const sousTitre  = document.getElementById('sous-titre');
+      const contenuEl  = document.getElementById('contenu-central');
+      const cmdEl      = document.getElementById('commandes');
+      const ramCanvas  = document.getElementById('ram-canvas');
+      const ramCtx     = ramCanvas.getContext('2d');
+      const jbWrap     = document.getElementById('jukebox-wrap');
+      const starsCvs   = document.getElementById('stars-bg');
+      const starsCtx   = starsCvs.getContext('2d');
+
+      // ===== Parallaxe sobre (champ d'étoiles) =====
+      let etoiles = [];
+      let starsRunning = true;
+
+      function initEtoiles() {
+        const w = starsCvs.width = innerWidth;
+        const h = starsCvs.height = innerHeight;
+        etoiles = [];
+        const nb = Math.floor(w * h / 3000);
+        for (let i = 0; i < nb; i++) {
+          etoiles.push({
+            x: Math.random() * w, y: Math.random() * h,
+            r: 0.3 + Math.random() * 1.5,
+            speed: 0.1 + Math.random() * 0.4,
+            alpha: 0.2 + Math.random() * 0.6,
+            twinkle: Math.random() * Math.PI * 2
+          });
+        }
+      }
+
+      function drawEtoiles() {
+        if (!starsRunning) return;
+        const w = starsCvs.width, h = starsCvs.height;
+        starsCtx.fillStyle = '#050510';
+        starsCtx.fillRect(0, 0, w, h);
+        const t = performance.now() * 0.001;
+        for (const e of etoiles) {
+          e.y += e.speed;
+          if (e.y > h) { e.y = -2; e.x = Math.random() * w; }
+          const flicker = 0.5 + 0.5 * Math.sin(t * 1.5 + e.twinkle);
+          starsCtx.fillStyle = `rgba(200,220,255,${e.alpha * flicker})`;
+          starsCtx.beginPath();
+          starsCtx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+          starsCtx.fill();
+        }
+        requestAnimationFrame(drawEtoiles);
+      }
+
+      addEventListener('resize', () => {
+        if (starsRunning) initEtoiles();
+        if (phase === 2) dessinerRAM();
+      });
+      initEtoiles();
+      drawEtoiles();
+
+      // ===== Animation de scramble du sous-titre =====
+      const TEXTE_INTRO = 'Appuyez sur ESPACE pour entrer dans';
+      const TEXTE_MENU  = 'Sélectionnez un monde puis appuyez sur ESPACE';
+      const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*<>{}[]|/\\=+-~^';
+
+      function scrambleTransition(de, vers, dureeMs, callback) {
+        const longueurMax = Math.max(de.length, vers.length);
+        const debut = performance.now();
+        const dureeTotale = dureeMs;
+
+        function frame() {
+          const elapsed = performance.now() - debut;
+          const prog = Math.min(1, elapsed / dureeTotale);
+
+          let texte = '';
+          for (let i = 0; i < longueurMax; i++) {
+            // Chaque caractère se "résout" progressivement de gauche à droite
+            const seuil = (i / longueurMax) * 0.7; // Les premiers se résolvent avant
+            const charProg = Math.max(0, (prog - seuil) / (1 - seuil));
+
+            if (charProg >= 1) {
+              // Caractère résolu → afficher le caractère cible
+              texte += i < vers.length ? vers[i] : '';
+            } else if (charProg > 0) {
+              // En cours de scramble
+              texte += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
+            } else {
+              // Pas encore commencé → afficher le caractère source
+              texte += i < de.length ? de[i] : ' ';
+            }
+          }
+          sousTitre.textContent = texte;
+
+          if (prog < 1) {
+            requestAnimationFrame(frame);
+          } else {
+            sousTitre.textContent = vers;
+            if (callback) callback();
+          }
+        }
+        requestAnimationFrame(frame);
+      }
+
+      // ===== Dessin de la barrette RAM style néon WWWWWW =====
+
+      const RAM_W = 1000;
+      const RAM_H = 360;
+      const ACCENTS = ['#0ff','#f0f','#0f0','#ff0','#f44','#88f','#f80','#4fa'];
+
+      // Géométrie
+      const MARGE_X = 50;
+      const PUCE_W  = 84;
+      const PUCE_H  = 64;
+      const PUCE_GAP = (RAM_W - MARGE_X * 2 - PUCE_W * 8) / 7;
+      const PUCE_Y  = 90;
+      const PATTE_W = 8;
+      const PATTE_H = 22;
+      const PATTE_ESP = (PUCE_W - PATTE_W * 4) / 5;
+
+      let puceZones = [];
+
+      function dessinerRAM() {
+        const dpr = window.devicePixelRatio || 1;
+        const dispW = Math.min(innerWidth * 0.88, 1000);
+        const dispH = dispW * (RAM_H / RAM_W);
+        ramCanvas.style.width = dispW + 'px';
+        ramCanvas.style.height = dispH + 'px';
+        ramCanvas.width = RAM_W * dpr;
+        ramCanvas.height = RAM_H * dpr;
+        ramCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        const ctx = ramCtx;
+        const t = performance.now() * 0.001;
+        puceZones = [];
+
+        ctx.clearRect(0, 0, RAM_W, RAM_H);
+
+        // --- PCB (corps) : fond très sombre avec contour néon ---
+        const pcbY = 28;
+        const pcbH = 240;
+
+        // Glow du PCB
+        ctx.shadowColor = '#0f4';
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = 'rgba(0,20,0,0.6)';
+        ctx.strokeStyle = '#0a5';
+        ctx.lineWidth = 2;
+        roundRect(ctx, 10, pcbY, RAM_W - 20, pcbH, 8);
+        ctx.fill(); ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Pistes de circuit néon
+        ctx.lineWidth = 0.8;
+        for (let i = 0; i < 14; i++) {
+          const ly = pcbY + 16 + i * 16;
+          const hue = (i * 25 + t * 10) % 360;
+          ctx.strokeStyle = `hsla(${hue},100%,50%,0.06)`;
+          ctx.beginPath();
+          ctx.moveTo(20, ly);
+          ctx.lineTo(RAM_W - 20, ly);
+          ctx.stroke();
+        }
+
+        // Encoche centrale (notch)
+        const notchW = 28, notchH = 12;
+        const notchX = RAM_W / 2 - notchW / 2;
+        ctx.fillStyle = '#020202';
+        ctx.strokeStyle = '#0a5';
+        ctx.lineWidth = 1;
+        ctx.fillRect(notchX, pcbY + pcbH - 1, notchW, notchH);
+        ctx.strokeRect(notchX, pcbY + pcbH - 1, notchW, notchH);
+
+        // --- Connecteur RGB arc-en-ciel (comme les lignes de gravité) ---
+        const connY = pcbY + pcbH + notchH - 2;
+        const connH = 30;
+        const nbPins = 64;
+        const pinW = (RAM_W - 80) / nbPins;
+
+        for (let i = 0; i < nbPins; i++) {
+          const px = 40 + i * pinW;
+          if (px > notchX - 4 && px < notchX + notchW + 4) continue;
+
+          // Dégradé HSL le long de la barrette, défilant dans le temps
+          const hue = ((i / nbPins) * 360 + t * 80) % 360;
+          ctx.fillStyle = `hsl(${hue},100%,55%)`;
+          ctx.shadowColor = `hsl(${hue},100%,60%)`;
+          ctx.shadowBlur = 4;
+          ctx.fillRect(px, connY, pinW - 1, connH);
+        }
+        ctx.shadowBlur = 0;
+
+        // Contour du connecteur
+        ctx.strokeStyle = `hsl(${(t * 60) % 360},100%,60%)`;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(38, connY - 1, RAM_W - 76, connH + 2);
+
+        // Label "WWWWWW-RAM-64" néon
+        ctx.fillStyle = 'rgba(0,255,100,0.2)';
+        ctx.font = 'bold 10px "Courier New", monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillText('WWWWWW-RAM-64', RAM_W - 30, pcbY + 8);
+
+        // --- 8 puces (chipsets = mondes) ---
+        for (let m = 0; m < 8; m++) {
+          const monde = MONDES[m];
+          const num = m + 1;
+          const debloque = num <= progression;
+          const complet = num < progression;
+          const disponible = debloque && monde.salles.length > 0;
+          const selectionne = (m === mondeSelectionne) && phase === 2;
+          const accent = ACCENTS[m];
+
+          const px = MARGE_X + m * (PUCE_W + PUCE_GAP);
+          const py = PUCE_Y;
+
+          puceZones.push({ x: px - 8, y: py - PATTE_H - 4, w: PUCE_W + 16, h: PUCE_H + PATTE_H * 2 + 40, monde: num, disponible });
+
+          // --- 8 pattes (4 en haut, 4 en bas) ---
+          for (let s = 0; s < 8; s++) {
+            const enHaut = s < 4;
+            const idx = enHaut ? s : s - 4;
+            const patteX = px + PATTE_ESP + idx * (PATTE_W + PATTE_ESP);
+            const patteY = enHaut ? py - PATTE_H : py + PUCE_H;
+
+            let couleur = disponible ? accent : (debloque ? '#333' : '#1a1a1a');
+            let alpha = 1;
+
+            if (disponible) {
+              alpha = 0.6 + 0.4 * Math.sin(t * 2.5 + m * 0.9 + s * 0.6);
+            } else {
+              alpha = 0.35;
+            }
+
+            // Glow des pattes
+            if (disponible) {
+              ctx.shadowColor = accent;
+              ctx.shadowBlur = selectionne ? 10 : 4;
+            }
+
+            ctx.fillStyle = couleur;
+            ctx.globalAlpha = alpha;
+            roundRect(ctx, patteX, patteY, PATTE_W, PATTE_H, 1);
+            ctx.fill();
+
+            // Contour néon des pattes
+            ctx.strokeStyle = couleur;
+            ctx.lineWidth = 0.8;
+            ctx.globalAlpha = alpha * 0.6;
+            roundRect(ctx, patteX, patteY, PATTE_W, PATTE_H, 1);
+            ctx.stroke();
+
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+          }
+
+          // --- Corps de la puce ---
+          const glowIntensity = selectionne ? (12 + 6 * Math.sin(t * 4)) : (disponible ? 6 : 0);
+
+          if (glowIntensity > 0) {
+            ctx.shadowColor = accent;
+            ctx.shadowBlur = glowIntensity;
+          }
+
+          ctx.fillStyle = selectionne ? 'rgba(20,20,30,0.9)' : 'rgba(8,8,12,0.85)';
+          ctx.strokeStyle = disponible ? accent : '#222';
+          ctx.lineWidth = selectionne ? 2.5 : (disponible ? 1.5 : 1);
+          roundRect(ctx, px, py, PUCE_W, PUCE_H, 5);
+          ctx.fill(); ctx.stroke();
+
+          ctx.shadowBlur = 0;
+
+          // Bordure de sélection pulsante
+          if (selectionne) {
+            const selAlpha = 0.3 + 0.2 * Math.sin(t * 5);
+            ctx.strokeStyle = `rgba(255,255,255,${selAlpha})`;
+            ctx.lineWidth = 1;
+            roundRect(ctx, px - 3, py - 3, PUCE_W + 6, PUCE_H + 6, 7);
+            ctx.stroke();
+          }
+
+          // Point de repère (coin haut-gauche)
+          ctx.fillStyle = disponible ? accent : '#222';
+          ctx.beginPath();
+          ctx.arc(px + 11, py + 11, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Numéro du monde
+          ctx.fillStyle = disponible ? accent : '#444';
+          ctx.font = 'bold 18px "Courier New", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(num, px + PUCE_W / 2, py + PUCE_H / 2);
+
+          // Nom du monde sous le chipset
+          const nomCourt = monde.nom.replace(/^Monde \d+ — /, '');
+          ctx.fillStyle = disponible ? (selectionne ? '#fff' : 'rgba(255,255,255,0.55)') : 'rgba(255,255,255,0.12)';
+          ctx.font = '10px "Courier New", monospace';
+          ctx.textBaseline = 'top';
+          ctx.fillText(nomCourt, px + PUCE_W / 2, py + PUCE_H + PATTE_H + 6);
+
+          // Cadenas néon pour les mondes verrouillés
+          if (!debloque) {
+            ctx.fillStyle = 'rgba(255,80,80,0.25)';
+            ctx.font = '13px "Courier New", monospace';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('\u2717', px + PUCE_W / 2, py + PUCE_H / 2 + 14);
+          }
+        }
+      }
+
+      function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+      }
+
+      // Clic sur une puce
+      ramCanvas.addEventListener('click', function(e) {
+        const rect = ramCanvas.getBoundingClientRect();
+        const scaleX = RAM_W / rect.width;
+        const scaleY = RAM_H / rect.height;
+        const mx = (e.clientX - rect.left) * scaleX;
+        const my = (e.clientY - rect.top) * scaleY;
+        for (const z of puceZones) {
+          if (mx >= z.x && mx <= z.x + z.w && my >= z.y && my <= z.y + z.h) {
+            if (z.disponible) {
+              mondeSelectionne = z.monde - 1;
+              lancerMonde(z.monde);
+            }
+            break;
+          }
+        }
+      });
+
+      ramCanvas.addEventListener('mousemove', function(e) {
+        const rect = ramCanvas.getBoundingClientRect();
+        const scaleX = RAM_W / rect.width;
+        const scaleY = RAM_H / rect.height;
+        const mx = (e.clientX - rect.left) * scaleX;
+        const my = (e.clientY - rect.top) * scaleY;
+        let surPuce = false;
+        for (const z of puceZones) {
+          if (mx >= z.x && mx <= z.x + z.w && my >= z.y && my <= z.y + z.h && z.disponible) {
+            surPuce = true; break;
+          }
+        }
+        ramCanvas.style.cursor = surPuce ? 'pointer' : 'default';
+      });
+
+      // Animation continue de la RAM
+      function animerRAM() {
+        if (phase === 2 && !jukeboxAffiche) dessinerRAM();
+        requestAnimationFrame(animerRAM);
+      }
+
+      // ===== Sélection clavier des mondes =====
+      function selectionnerMonde(direction) {
+        // Trouver le prochain monde disponible dans la direction donnée
+        let idx = mondeSelectionne;
+        for (let tentative = 0; tentative < 8; tentative++) {
+          idx = (idx + direction + 8) % 8;
+          const num = idx + 1;
+          if (num <= progression && MONDES[idx].salles.length > 0) {
+            mondeSelectionne = idx;
+            return;
+          }
+        }
+      }
+
+      // ===== Transition Phase 1 → Phase 2 =====
+      function passerAuMenu() {
+        if (phase !== 1) return;
+        phase = 2;
+
+        // Animer le titre vers sa position menu
+        titreW.classList.add('menu-pos');
+        sousTitre.classList.add('menu-pos');
+
+        // Scramble du sous-titre
+        scrambleTransition(TEXTE_INTRO, TEXTE_MENU, 900, null);
+
+        // Faire apparaître le contenu et les commandes
+        setTimeout(() => {
+          contenuEl.classList.add('visible');
+          cmdEl.classList.add('visible');
+        }, 200);
+
+        // Démarrer le vortex
+        if (window.titleVortexStart) window.titleVortexStart();
+
+        // Arrêter les étoiles
+        setTimeout(() => {
+          starsRunning = false;
+          starsCvs.style.display = 'none';
+        }, 1000);
+
+        // Lancer une musique aléatoire
+        if (window.jukeboxPlay && window.jukeboxNbPistes) {
+          const nb = window.jukeboxNbPistes();
+          window.jukeboxPlay(Math.floor(Math.random() * nb));
+        }
+
+        // Construire le DOM du jukebox
+        if (window.jukeboxConstruireDOM) {
+          window.jukeboxConstruireDOM('jukebox-host');
+        }
+
+        // Démarrer l'animation de la RAM
+        dessinerRAM();
+        animerRAM();
+      }
+
+      // ===== Toggle Jukebox / RAM =====
+      function toggleJukebox() {
+        if (phase !== 2) return;
+        jukeboxAffiche = !jukeboxAffiche;
+        if (jukeboxAffiche) {
+          ramCanvas.style.display = 'none';
+          jbWrap.classList.add('visible');
+        } else {
+          jbWrap.classList.remove('visible');
+          ramCanvas.style.display = 'block';
+        }
+      }
+
+      // ===== Lancer un monde =====
+      function lancerMonde(num) {
+        if (window.jukeboxStop) window.jukeboxStop();
+        if (window.titleVortexStop) window.titleVortexStop();
+        window.location.href = 'WWWWWW.html?monde=' + num;
+      }
+
+      // ===== Clavier =====
+      addEventListener('keydown', function(e) {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          if (phase === 1) {
+            passerAuMenu();
+          } else if (phase === 2 && !jukeboxAffiche) {
+            // Lancer le monde sélectionné
+            const num = mondeSelectionne + 1;
+            const m = MONDES[mondeSelectionne];
+            if (num <= progression && m && m.salles.length > 0) {
+              lancerMonde(num);
+            }
+          }
+          return;
+        }
+
+        if (phase === 2) {
+          // Navigation gauche/droite
+          if (e.code === 'ArrowLeft' || e.code === 'KeyQ') {
+            selectionnerMonde(-1);
+            return;
+          }
+          if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+            selectionnerMonde(1);
+            return;
+          }
+          if (e.code === 'KeyJ') {
+            toggleJukebox();
+            return;
+          }
+          // Touches numériques 1-8
+          const num = parseInt(e.key);
+          if (num >= 1 && num <= 8) {
+            const m = MONDES[num - 1];
+            if (num <= progression && m && m.salles.length > 0) {
+              mondeSelectionne = num - 1;
+              lancerMonde(num);
+            }
+          }
+        }
+      });
+
+    })();
+    </script>
+  </body>
+</html>

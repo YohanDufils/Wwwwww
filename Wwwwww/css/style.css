@@ -1,0 +1,165 @@
+/* =============================================
+   WWWWWW — Styles globaux
+   Jeu de plateforme à inversion de gravité
+   ============================================= */
+
+/* Palette globale */
+:root {
+  --couleur-fond: #050510;
+}
+
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Corps de page — fond sombre, pas de scrollbars */
+body {
+  background: var(--couleur-fond);
+  overflow: hidden;
+  font-family: 'Courier New', monospace;
+}
+
+/* Canvas de jeu — rendu pixelisé pour l'esthétique rétro */
+canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* =============================================
+   Écran titre — occupe 100% du viewport
+   ============================================= */
+#title-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: block;
+  background: var(--couleur-fond);
+}
+
+#title {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  color: #fff;
+  text-align: center;
+  background: transparent;
+  padding: 2vh 2vw;
+}
+
+#title h1 {
+  font-size: min(10vw, 8vh);
+  letter-spacing: min(1.5vw, 16px);
+  color: #0ff;
+  text-shadow: 0 0 20px #0ff, 0 0 40px #08f, 0 0 80px #04f;
+  animation: pulse 2s ease-in-out infinite;
+  margin-bottom: 1.5vh;
+}
+
+#title p {
+  color: #8ff;
+  font-size: min(2.2vw, 2.5vh);
+  text-shadow: 0 0 6px #0ff;
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+#title .c {
+  margin-top: 1.5vh;
+  color: #f0f;
+  font-size: min(1.6vw, 1.8vh);
+  text-shadow: 0 0 6px #f0f;
+  line-height: 2;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* =============================================
+   Jukebox — Écran titre, occupe tout l'espace restant
+   ============================================= */
+#jukebox {
+  margin-top: 2vh;
+  width: min(96vw, 1200px);
+}
+
+.jb-label {
+  font-size: min(1.6vw, 1.8vh);
+  letter-spacing: 8px;
+  color: #0ff;
+  text-shadow: 0 0 6px #0ff;
+  margin-bottom: 1vh;
+}
+
+.jb-grille {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: min(0.6vw, 0.6vh);
+}
+
+.jb-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3vh;
+  padding: min(0.8vh, 8px) min(0.6vw, 10px);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid color-mix(in srgb, var(--jb-couleur) 40%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  font-family: 'Courier New', monospace;
+}
+
+.jb-btn:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--jb-couleur);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--jb-couleur) 30%, transparent);
+}
+
+.jb-btn.jb-actif {
+  background: color-mix(in srgb, var(--jb-couleur) 15%, transparent);
+  border-color: var(--jb-couleur);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--jb-couleur) 50%, transparent),
+              inset 0 0 8px color-mix(in srgb, var(--jb-couleur) 10%, transparent);
+  animation: jb-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes jb-pulse {
+  0%, 100% { box-shadow: 0 0 12px color-mix(in srgb, var(--jb-couleur) 40%, transparent); }
+  50% { box-shadow: 0 0 20px color-mix(in srgb, var(--jb-couleur) 60%, transparent); }
+}
+
+.jb-num {
+  font-size: min(1.2vw, 1.3vh);
+  color: var(--jb-couleur);
+  text-shadow: 0 0 4px var(--jb-couleur);
+  opacity: 0.7;
+}
+
+.jb-nom {
+  font-size: min(1.3vw, 1.5vh);
+  color: #fff;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.jb-desc {
+  font-size: min(1vw, 1.1vh);
+  color: #888;
+  line-height: 1.2;
+}
